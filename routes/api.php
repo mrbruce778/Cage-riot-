@@ -1,0 +1,51 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthController;
+// use App\Http\Controllers\OrganizationController;
+// use App\Http\Controllers\ReleaseController;
+
+/*
+|--------------------------------------------------------------------------
+| Public Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
+
+Route::post('/send-otp', [AuthController::class, 'sendOtp']);
+Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
+Route::post('/change-pass', [AuthController::class, 'resetPassword']);
+
+/*
+|--------------------------------------------------------------------------
+| Protected Routes (JWT Required)
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['auth:api'])->group(function () {
+
+    // Auth
+    Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/refresh', [AuthController::class, 'refresh']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Standard Account Routes
+    |--------------------------------------------------------------------------
+    // */
+    // Route::middleware(['role:standard_owner'])->group(function () {
+    //     Route::post('/releases', [ReleaseController::class, 'store']);
+    // });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Enterprise Parent Routes
+    |--------------------------------------------------------------------------
+    */
+    // Route::middleware(['role:enterprise_admin'])->group(function () {
+    //     Route::post('/enterprise/create-artist', [OrganizationController::class, 'createArtistAccount']);
+    // });
+});
