@@ -86,51 +86,34 @@ class AuthController extends Controller
             'name' => 'required|string',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:6',
-            'role_id' => 'required|integer'
-            //'role_id' => 'required|integer|exists:roles,id'
         ]);
 
         DB::beginTransaction();
 
         try {
 
-            // 1️⃣ Get Default Organization
+            // Get Default Organization
             $organization = Organization::where('name', 'Independent Artist')->first();
 
             if (!$organization) {
-                throw new \Exception('organization not found');
+                throw new \Exception('Organization not found');
             }
 
-            // 2️⃣ Create User
+            // Create User
             $user = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
                 'password' => bcrypt($request->password),
             ]);
 
-            // 3️⃣ Assign standard_viewer Role
-            if ($request->role_id == 1) {
-                $role = Role::where('name', 'standard_owner')->first();
-            } else if ($request->role_id == 2) {
-                $role = Role::where('name', 'standard_viewer')->first();
-            } else if ($request->role_id == 3) {
-                $role = Role::where('name', 'enterprise_admin')->first();
-            } else if ($request->role_id == 4) {
-                $role = Role::where('name', 'enterprise_ops')->first();
-            } else if ($request->role_id == 5) {
-                $role = Role::where('name', 'enterprise_legal')->first();
-            } else if ($request->role_id == 6) {
-                $role = Role::where('name', 'enterprise_finance')->first();
-            } else if ($request->role_id == 7) {
-                $role = Role::where('name', 'artist_owner')->first();
-            } else if ($request->role_id == 8) {
-                $role = Role::where('name', 'artist_viewer')->first();
-            } else if ($request->role_id == 9) {
-                $role = Role::where('name', 'platform_admin')->first();
-            } else {
-                throw new \Exception('Invalid role_id');
+            // Default Role
+            $role = Role::where('name', 'standard_viewer')->first();
+
+            if (!$role) {
+                throw new \Exception('Default role not found');
             }
-            // $role = Role::where('name', 'standard_owner')->first();
+
+            // Assign User Role
             UserRole::create([
                 'user_id' => $user->id,
                 'organization_id' => $organization->id,
@@ -139,11 +122,17 @@ class AuthController extends Controller
 
             DB::commit();
 
-            // 4️⃣ Generate JWT
+            // Generate JWT Token
             $token = JWTAuth::fromUser($user);
 
-            return $this->respondWithToken($token);
+            return response()->json([
+                'access_token' => $token,
+                'token_type' => 'bearer',
+                'organization_id' => $organization->id,
+                'organization_parent_id' => $organization->parent_id
+            ]);
         } catch (\Exception $e) {
+
             DB::rollBack();
 
             return response()->json([
