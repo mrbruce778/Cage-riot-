@@ -126,7 +126,7 @@ class AuthController extends Controller
             } else if ($request->role_id == 8) {
                 $role = Role::where('name', 'artist_viewer')->first();
             } else if ($request->role_id == 9) {
-                $role = Role::where('name', 'platform_super')->first();
+                $role = Role::where('name', 'platform_admin')->first();
             } else {
                 throw new \Exception('Invalid role_id');
             }
