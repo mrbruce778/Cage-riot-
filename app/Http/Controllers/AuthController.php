@@ -95,7 +95,7 @@ class AuthController extends Controller
         try {
 
             // 1️⃣ Get Default Organization
-            $organization = Organization::where('name', 'Enterprise Parent Company')->first();
+            $organization = Organization::where('name', 'Platform')->first();
 
             if (!$organization) {
                 throw new \Exception('Default organization not found');
@@ -125,6 +125,8 @@ class AuthController extends Controller
                 $role = Role::where('name', 'artist_owner')->first();
             } else if ($request->role_id == 8) {
                 $role = Role::where('name', 'artist_viewer')->first();
+            } else if ($request->role_id == 9) {
+                $role = Role::where('name', 'platform_super')->first();
             } else {
                 throw new \Exception('Invalid role_id');
             }
