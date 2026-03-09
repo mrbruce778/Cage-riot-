@@ -95,7 +95,7 @@ class AuthController extends Controller
         try {
 
             // 1️⃣ Get Default Organization
-            $organization = Organization::where('name', 'Platform')->first();
+            $organization = Organization::where('name', 'enterprise_parent')->first();
 
             if (!$organization) {
                 throw new \Exception('Default organization not found');
