@@ -95,10 +95,10 @@ class AuthController extends Controller
         try {
 
             // 1️⃣ Get Default Organization
-            $organization = Organization::where('name', 'Artist Under Big Label')->first();
+            $organization = Organization::where('name', 'Independent Artist')->first();
 
             if (!$organization) {
-                throw new \Exception('Default organization not found');
+                throw new \Exception('organization not found');
             }
 
             // 2️⃣ Create User
