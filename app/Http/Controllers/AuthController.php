@@ -134,6 +134,7 @@ class AuthController extends Controller
                 'access_token' => $token,
                 'token_type' => 'bearer',
                 'organization_id' => $organization->id,
+                'organization_name' => $organization->name,
                 'organization_parent_id' => $organization->parent_id
             ]);
         } catch (\Exception $e) {
