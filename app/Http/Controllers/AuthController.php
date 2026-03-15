@@ -201,7 +201,7 @@ class AuthController extends Controller
             if ($user == null) {
                 return ResponseHelper::Out('failed', 'unauthorized', null, 401);
             }
-            $user->update(['otp' => null,'otp_verified' => true]);
+            $user->update(['otp' => 0,  'updated_by'     => $user->id,]);
             return ResponseHelper::Out('success', 'Otp verification successful!', $user, 200);
         } catch (ValidationException $e) {
             return ResponseHelper::Out('error', 'Validation Failed', $e->errors(), 422);
@@ -227,7 +227,6 @@ class AuthController extends Controller
             //update password
             $user->update([
                 'password' => Hash::make($request->input('password')),
-                'otp_varified'=>false,
                 'updated_by'     => $user->id,
             ]);
             return ResponseHelper::Out('success', 'Password set successful!', $user, 200);
