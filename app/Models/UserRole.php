@@ -11,11 +11,7 @@ class UserRole extends Model
 
     protected $table = 'user_roles';
 
-    protected $fillable = [
-        'user_id',
-        'organization_id',
-        'role_id',
-    ];
+    protected $guarded = [];
 
     /*
     |--------------------------------------------------------------------------
@@ -30,7 +26,7 @@ class UserRole extends Model
 
     public function organization()
     {
-        return $this->belongsTo(Organization::class);
+        return $this->belongsTo(Organization::class, 'organization_id', 'id');
     }
 
     public function role()

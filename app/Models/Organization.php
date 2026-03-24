@@ -11,7 +11,8 @@ class Organization extends Model
     use HasFactory;
 
     protected $guarded = [];
-
+    protected $keyType = 'string';
+    public $incrementing = false;
     /*
     |--------------------------------------------------------------------------
     | Relationships
