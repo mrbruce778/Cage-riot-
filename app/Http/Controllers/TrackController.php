@@ -17,7 +17,7 @@ class TrackController extends Controller
             || $user->hasRoleInOrganization('artist_owner', $orgId);
     }
 
-    // ✅ Add track to release
+    // ✅ Create Track
     public function store(Request $request, $releaseId)
     {
         $user = Auth::user();
@@ -32,12 +32,23 @@ class TrackController extends Controller
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'track_number' => 'required|integer',
-            'duration' => 'nullable|integer',
+            'track_number' => 'required|integer|min:1',
         ]);
 
+        // ✅ Enforce unique track_number per release
+        $exists = Track::where('release_id', $releaseId)
+            ->where('track_number', $validated['track_number'])
+            ->exists();
+
+        if ($exists) {
+            return response()->json([
+                'error' => 'Track number already exists for this release'
+            ], 422);
+        }
+
         $track = $release->tracks()->create([
-            ...$validated,
+            'title' => $validated['title'],
+            'track_number' => $validated['track_number'],
             'organization_id' => $orgId,
             'created_by' => $user->id,
         ]);
@@ -45,7 +56,7 @@ class TrackController extends Controller
         return response()->json($track, 201);
     }
 
-    // ✅ Get all tracks of a release
+    // ✅ List Tracks
     public function index($releaseId)
     {
         $user = Auth::user();
@@ -59,7 +70,7 @@ class TrackController extends Controller
         return response()->json($tracks);
     }
 
-    // ✅ Update track
+    // ✅ Update Track
     public function update(Request $request, $id)
     {
         $user = Auth::user();
@@ -74,16 +85,29 @@ class TrackController extends Controller
 
         $validated = $request->validate([
             'title' => 'sometimes|string|max:255',
-            'track_number' => 'sometimes|integer',
-            'duration' => 'nullable|integer',
+            'track_number' => 'sometimes|integer|min:1',
         ]);
+
+        // ✅ Check uniqueness if track_number is being updated
+        if (isset($validated['track_number'])) {
+            $exists = Track::where('release_id', $track->release_id)
+                ->where('track_number', $validated['track_number'])
+                ->where('id', '!=', $track->id)
+                ->exists();
+
+            if ($exists) {
+                return response()->json([
+                    'error' => 'Track number already exists for this release'
+                ], 422);
+            }
+        }
 
         $track->update($validated);
 
         return response()->json($track);
     }
 
-    // ✅ Delete track
+    // ✅ Delete Track
     public function destroy($id)
     {
         $user = Auth::user();
