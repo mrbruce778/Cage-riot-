@@ -2,6 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ReleaseController;
+use App\Http\Controllers\TrackController;
 // use App\Http\Controllers\OrganizationController;
 // use App\Http\Controllers\ReleaseController;
 
@@ -48,4 +50,14 @@ Route::middleware(['auth:api'])->group(function () {
     // Route::middleware(['role:enterprise_admin'])->group(function () {
     //     Route::post('/enterprise/create-artist', [OrganizationController::class, 'createArtistAccount']);
     // });
+
+    Route::apiResource('releases', ReleaseController::class);
+
+    //tracks
+
+    // Tracks
+    Route::post('releases/{releaseId}/tracks', [TrackController::class, 'store']);
+    Route::get('releases/{releaseId}/tracks', [TrackController::class, 'index']);
+    Route::put('tracks/{id}', [TrackController::class, 'update']);
+    Route::delete('tracks/{id}', [TrackController::class, 'destroy']);
 });

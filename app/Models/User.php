@@ -69,4 +69,17 @@ class User extends Authenticatable implements JWTSubject
             ->withPivot('organization_id')
             ->withTimestamps();
     }
+    public function hasRoleInOrganization($roleName, $organizationId)
+    {
+        return $this->userRoles()
+            ->where('organization_id', $organizationId)
+            ->whereHas('role', function ($q) use ($roleName) {
+                $q->where('name', $roleName);
+            })
+            ->exists();
+    }
+    public function currentOrganizationId()
+    {
+        return auth()->payload()->get('organization_id');
+    }
 }

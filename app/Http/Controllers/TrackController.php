@@ -1,0 +1,103 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Release;
+use App\Models\Track;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+class TrackController extends Controller
+{
+    private function canManageRelease($user)
+    {
+        $orgId = $user->currentOrganizationId();
+
+        return $user->hasRoleInOrganization('standard_owner', $orgId)
+            || $user->hasRoleInOrganization('artist_owner', $orgId);
+    }
+
+    // ✅ Add track to release
+    public function store(Request $request, $releaseId)
+    {
+        $user = Auth::user();
+        $orgId = $user->currentOrganizationId();
+
+        if (!$this->canManageRelease($user)) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $release = Release::where('organization_id', $orgId)
+            ->findOrFail($releaseId);
+
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'track_number' => 'required|integer',
+            'duration' => 'nullable|integer',
+        ]);
+
+        $track = $release->tracks()->create([
+            ...$validated,
+            'organization_id' => $orgId,
+            'created_by' => $user->id,
+        ]);
+
+        return response()->json($track, 201);
+    }
+
+    // ✅ Get all tracks of a release
+    public function index($releaseId)
+    {
+        $user = Auth::user();
+        $orgId = $user->currentOrganizationId();
+
+        $tracks = Track::where('organization_id', $orgId)
+            ->where('release_id', $releaseId)
+            ->orderBy('track_number')
+            ->get();
+
+        return response()->json($tracks);
+    }
+
+    // ✅ Update track
+    public function update(Request $request, $id)
+    {
+        $user = Auth::user();
+        $orgId = $user->currentOrganizationId();
+
+        if (!$this->canManageRelease($user)) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $track = Track::where('organization_id', $orgId)
+            ->findOrFail($id);
+
+        $validated = $request->validate([
+            'title' => 'sometimes|string|max:255',
+            'track_number' => 'sometimes|integer',
+            'duration' => 'nullable|integer',
+        ]);
+
+        $track->update($validated);
+
+        return response()->json($track);
+    }
+
+    // ✅ Delete track
+    public function destroy($id)
+    {
+        $user = Auth::user();
+        $orgId = $user->currentOrganizationId();
+
+        if (!$this->canManageRelease($user)) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $track = Track::where('organization_id', $orgId)
+            ->findOrFail($id);
+
+        $track->delete();
+
+        return response()->json(['message' => 'Deleted']);
+    }
+}
