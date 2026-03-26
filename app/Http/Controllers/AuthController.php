@@ -19,6 +19,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Str;
+
 
 class AuthController extends Controller
 {
@@ -49,12 +51,19 @@ class AuthController extends Controller
         $formattedRole = ucwords(str_replace('_', ' ', $userRole->role->name));
 
         $organizationName = $organization->name;
+        $plainRefreshToken = Str::random(64);
 
-        $message = "Welcome {$user->name}, you are logged in as {$formattedRole}. Redirecting you to {$organizationName}...";
-
+        \DB::table('refresh_tokens')->insert([
+            'user_id' => $user->id,
+            'token' => Hash::make($plainRefreshToken),
+            'expires_at' => Carbon::now()->addDays(14),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
         return response()->json([
             'message' => $message,
             'access_token' => $token,
+            'refresh_token' => $plainRefreshToken,
             'token_type' => 'bearer',
             'organization_id' => $organizationId,
             'organization_name' => $organizationName,
@@ -74,11 +83,47 @@ class AuthController extends Controller
         return response()->json(['message' => 'Logged out']);
     }
 
-    public function refresh()
+    public function refresh(Request $request)
     {
-        return $this->respondWithToken(JWTAuth::refresh(JWTAuth::getToken()));
-    }
+        $request->validate([
+            'refresh_token' => 'required|string'
+        ]);
 
+        $tokenRecord = \DB::table('refresh_tokens')
+            ->where('revoked', false)
+            ->get()
+            ->first(function ($record) use ($request) {
+                return \Hash::check($request->refresh_token, $record->token);
+            });
+
+        if (!$tokenRecord) {
+            return response()->json(['error' => 'Invalid refresh token'], 401);
+        }
+
+        if (\Carbon\Carbon::parse($tokenRecord->expires_at)->isPast()) {
+            return response()->json(['error' => 'Refresh token expired'], 401);
+        }
+
+        $user = \App\Models\User::find($tokenRecord->user_id);
+
+        $newAccessToken = JWTAuth::fromUser($user);
+
+        $newRefreshToken = \Str::random(64);
+
+        \DB::table('refresh_tokens')
+            ->where('id', $tokenRecord->id)
+            ->update([
+                'token' => \Hash::make($newRefreshToken),
+                'expires_at' => now()->addDays(14),
+                'updated_at' => now(),
+            ]);
+
+        return response()->json([
+            'access_token' => $newAccessToken,
+            'refresh_token' => $newRefreshToken,
+            'expires_in' => JWTAuth::factory()->getTTL() * 60,
+        ]);
+    }
     protected function respondWithToken($token)
     {
         return response()->json([
@@ -237,4 +282,5 @@ class AuthController extends Controller
             return ResponseHelper::Out('failed', 'Something went wrong', $e->getMessage(), 500);
         }
     }
+
 }
