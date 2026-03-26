@@ -101,7 +101,7 @@ class ReleaseController extends Controller
         }
         $release = Release::where('organization_id', $user->currentOrganizationId())
             ->findOrFail($id);
-
+        $release->tracks()->delete();
         $release->delete();
 
         return response()->json(['message' => 'Deleted successfully']);
