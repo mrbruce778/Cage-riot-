@@ -59,7 +59,7 @@ class ReleaseController extends Controller
         $user = Auth::user();
 
         $release = Release::where('organization_id', $user->currentOrganizationId())
-            ->with(['tracks', 'artwork'])
+            // ->with(['tracks', 'artwork'])
             ->findOrFail($id);
 
         return response()->json($release);
