@@ -61,7 +61,7 @@ class AuthController extends Controller
             'updated_at' => now(),
         ]);
         return response()->json([
-            'message' => $message,
+            'message' => "Welcome {$user->name}, you are logged in as {$formattedRole}. Redirecting you to {$organizationName}...",
             'access_token' => $token,
             'refresh_token' => $plainRefreshToken,
             'token_type' => 'bearer',
