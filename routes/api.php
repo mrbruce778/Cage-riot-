@@ -19,7 +19,7 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/send-otp', [AuthController::class, 'sendOtp']);
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
 Route::post('/change-pass', [AuthController::class, 'resetPassword']);
-
+Route::post('/refresh', [AuthController::class, 'refresh']);
 /*
 |--------------------------------------------------------------------------
 | Protected Routes (JWT Required)
@@ -31,7 +31,7 @@ Route::middleware(['auth:api'])->group(function () {
     // Auth
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
-    Route::post('/refresh', [AuthController::class, 'refresh']);
+    
 
     /*
     |--------------------------------------------------------------------------
