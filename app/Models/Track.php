@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 class Track extends Model
 {
     protected $guarded = [];
-
+    protected $keyType = 'string';
+    public $incrementing = false;
     /**
      * A track belongs to a release
      */
