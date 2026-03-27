@@ -124,4 +124,14 @@ class TrackController extends Controller
 
         return response()->json(['message' => 'Deleted']);
     }
+    public function show($id)
+    {
+        $user = auth()->user();
+
+        $track = \App\Models\Track::whereHas('release', function ($q) use ($user) {
+            $q->where('organization_id', $user->currentOrganizationId());
+        })->findOrFail($id);
+
+        return response()->json($track);
+    }
 }

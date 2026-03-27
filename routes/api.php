@@ -60,4 +60,5 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('releases/{releaseId}/tracks', [TrackController::class, 'index']);
     Route::put('tracks/{id}', [TrackController::class, 'update']);
     Route::delete('tracks/{id}', [TrackController::class, 'destroy']);
+    Route::get('tracks/{id}', [TrackController::class, 'show']);
 });
