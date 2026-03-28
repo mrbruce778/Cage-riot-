@@ -157,7 +157,7 @@ class AuthController extends Controller
         try {
 
             // Get Default Organization
-            $organization = Organization::where('name', 'Independent Artist')->first();
+            $organization = Organization::where('name', 'Ed sheeran')->first();
 
             if (!$organization) {
                 throw new \Exception('Organization not found');
