@@ -171,7 +171,7 @@ class AuthController extends Controller
             ]);
 
             // Default Role
-            $role = Role::where('name', 'standard_viewer')->first();
+            $role = Role::where('name', 'standard_owner')->first();
 
             if (!$role) {
                 throw new \Exception('role not found');
