@@ -18,17 +18,9 @@ class ReleaseController extends Controller
     public function index()
     {
         $user = Auth::user();
-        $orgId = $user->currentOrganizationId();
-        if($user->hasRoleInOrganization('enterprise_admin', $orgId)){
-            $releases = Release::where('organization_id', $orgId)
-                ->latest()
-                ->get();
-        }else{
-            $releases = Release::where('organization_id', $orgId)
-                ->where('created_by', $user->id)
-                ->latest()
-                ->get();
-        }
+        $releases = Release::where('organization_id', $user->currentOrganizationId())
+            ->latest()
+            ->get();
 
         return response()->json($releases);
     }
