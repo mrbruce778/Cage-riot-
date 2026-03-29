@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ReleaseController;
 use App\Http\Controllers\TrackController;
+use App\Http\Controllers\AssetController;
 // use App\Http\Controllers\OrganizationController;
 // use App\Http\Controllers\ReleaseController;
 
@@ -20,6 +21,7 @@ Route::post('/send-otp', [AuthController::class, 'sendOtp']);
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
 Route::post('/change-pass', [AuthController::class, 'resetPassword']);
 Route::post('/refresh', [AuthController::class, 'refresh']);
+
 /*
 |--------------------------------------------------------------------------
 | Protected Routes (JWT Required)
@@ -31,7 +33,7 @@ Route::middleware(['auth:api'])->group(function () {
     // Auth
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
-    
+    Route::post('/releases/{release}/artwork', [AssetController::class, 'uploadArtwork']);    
 
     /*
     |--------------------------------------------------------------------------
