@@ -43,6 +43,7 @@ class ReleaseController extends Controller
     {
         $user = Auth::user();
         $releases = Release::where('organization_id', $user->currentOrganizationId())
+            ->with('artwork')
             ->latest()
             ->get();
 
