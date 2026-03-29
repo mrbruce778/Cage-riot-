@@ -14,6 +14,15 @@ use App\Models\Organization;
 
 class ReleaseController extends Controller
 {
+    private function getAllowedOrgIds($user)
+    {
+        $org = Organization::findOrFail($user->currentOrganizationId());
+
+        return array_filter([
+            $org->id,
+            $org->parent_id
+        ]);
+    }
     private function canManageRelease($user)
     {
         $orgId = $user->currentOrganizationId();
@@ -42,7 +51,9 @@ class ReleaseController extends Controller
     public function index()
     {
         $user = Auth::user();
-        $releases = Release::where('organization_id', $user->currentOrganizationId())
+        $allowedOrgIds = $this->getAllowedOrgIds($user);
+
+        $releases = Release::whereIn('organization_id', $allowedOrgIds)
             ->with('artwork')
             ->latest()
             ->get();
@@ -142,10 +153,11 @@ class ReleaseController extends Controller
     {
         $user = Auth::user();
 
-        $release = Release::where('organization_id', $user->currentOrganizationId())
+        $allowedOrgIds = $this->getAllowedOrgIds($user);
+
+        $release = Release::whereIn('organization_id', $allowedOrgIds)
             ->with(['tracks', 'artwork'])
             ->findOrFail($id);
-
         return response()->json($release);
     }
 
@@ -187,14 +199,10 @@ class ReleaseController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
-        // 🧠 Normalize org
-        $orgId = $user->currentOrganizationId();
-        $userOrg = \App\Models\Organization::findOrFail($orgId);
-        $organizationId = $userOrg->parent_id ?? $userOrg->id;
-        $userOrg = Organization::findOrFail($user->currentOrganizationId());
-        $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
+        
+        $allowedOrgIds = $this->getAllowedOrgIds($user);
 
-        $release = Release::where('organization_id', $normalizedOrgId)
+        $release = Release::whereIn('organization_id', $allowedOrgIds)
             ->findOrFail($id);
 
         $validated = $request->validate([
@@ -276,7 +284,10 @@ class ReleaseController extends Controller
         if (!$this->canManageRelease($user)) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
-        $release = Release::where('organization_id', $user->currentOrganizationId())
+        $userOrg = Organization::findOrFail($user->currentOrganizationId());
+        $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
+
+        $release = Release::where('organization_id', $normalizedOrgId)
             ->findOrFail($id);
         $release->tracks()->delete();
         $release->delete();
