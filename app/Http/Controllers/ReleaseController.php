@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Models\Asset;
+use Illuminate\Support\Facades\DB;
+use App\Models\Organization;
+
 
 class ReleaseController extends Controller
 {
@@ -17,6 +20,24 @@ class ReleaseController extends Controller
 
         return $user->hasRoleInOrganization('standard_owner', $orgId)
             || $user->hasRoleInOrganization('artist_owner', $orgId);
+    }
+    private function handleArtworkUpload(Request $request, $release, $user)
+    {
+        $file = $request->file('artwork');
+
+        $path = $file->store('artworks', 'public');
+
+        return Asset::create([
+            'id' => (string) Str::uuid(),
+            'organization_id' => $user->currentOrganizationId(),
+            'release_id' => $release->id,
+            'asset_type' => 'artwork',
+            'file_name' => $file->getClientOriginalName(),
+            'file_path' => $path,
+            'mime_type' => $file->getMimeType(),
+            'file_size' => $file->getSize(),
+            'created_by' => $user->id,
+        ]);
     }
     public function index()
     {
@@ -32,10 +53,12 @@ class ReleaseController extends Controller
     {
         $user = Auth::user();
 
+        // 🔐 Permission check
         if (!$this->canManageRelease($user)) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
+        // ✅ Validation
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'version_title' => 'nullable|string|max:255',
@@ -46,48 +69,68 @@ class ReleaseController extends Controller
             'release_date' => 'nullable|date',
             'original_release_date' => 'nullable|date',
             'metadata' => 'nullable|array',
-
-            // 👇 file validation
             'artwork' => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
         ]);
 
-        // Step 1: Create release first
-        $release = Release::create([
-            ...$validated,
-            'organization_id' => $user->currentOrganizationId(),
-            'created_by' => $user->id,
-            'status' => 'draft',
-        ]);
+        // 🧠 Normalize organization (parent or self)
+        $orgId = $user->currentOrganizationId();
+        $userOrg = Organization::findOrFail($orgId);
+        $organizationId = $userOrg->parent_id ?? $userOrg->id;
 
-        // Step 2: Handle artwork (if exists)
-        if ($request->hasFile('artwork')) {
+        DB::beginTransaction();
 
-            $file = $request->file('artwork');
+        try {
+            // ❗ Remove artwork from release data
+            $releaseData = collect($validated)->except('artwork')->toArray();
 
-            $path = $file->store('artworks', 'public');
-
-            $asset = Asset::create([
-                'id' => (string) Str::uuid(),
-                'organization_id' => $user->currentOrganizationId(),
-                'release_id' => $release->id,
-                'asset_type' => 'artwork',
-                'file_name' => $file->getClientOriginalName(),
-                'file_path' => $path,
-                'mime_type' => $file->getMimeType(),
-                'file_size' => $file->getSize(),
+            // 🧱 Create release
+            $release = Release::create([
+                ...$releaseData,
+                'organization_id' => $organizationId,
                 'created_by' => $user->id,
+                'status' => 'draft',
             ]);
 
-            // attach artwork
-            $release->update([
-                'artwork_asset_id' => $asset->id
-            ]);
+            // 🖼 Upload artwork if exists
+            if ($request->hasFile('artwork')) {
+
+                $file = $request->file('artwork');
+                $path = $file->store('artworks', 'public');
+
+                $asset = Asset::create([
+                    'id' => (string) Str::uuid(),
+                    'organization_id' => $organizationId,
+                    'release_id' => $release->id,
+                    'asset_type' => 'artwork',
+                    'file_name' => $file->getClientOriginalName(),
+                    'file_path' => $path,
+                    'mime_type' => $file->getMimeType(),
+                    'file_size' => $file->getSize(),
+                    'created_by' => $user->id,
+                ]);
+
+                // 🔗 Attach artwork
+                $release->update([
+                    'artwork_asset_id' => $asset->id
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Release created successfully',
+                'data' => $release->load('artwork')
+            ], 201);
+
+        } catch (\Exception $e) {
+
+            DB::rollBack();
+
+            return response()->json([
+                'error' => 'Failed to create release',
+                'message' => $e->getMessage()
+            ], 500);
         }
-
-        return response()->json([
-            'message' => 'Release created successfully',
-            'data' => $release->load('artwork')
-        ], 201);
     }
 
     public function show($id)
