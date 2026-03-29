@@ -17,8 +17,14 @@ class AssetController extends Controller
         $request->validate([
             'file' => 'required|image|mimes:jpg,jpeg,png|max:5120',
         ]);
+        
         $user = Auth::user();
-        if (!$user || $release->organization_id !== $user->organization_id) {
+        $userOrg = $user->organization;
+        $organizationId = $userOrg->parent_id ?? $userOrg->id;
+        if (
+            $release->organization_id !== $userOrg->id &&
+            $release->organization_id !== $userOrg->parent_id
+        ) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
         DB::beginTransaction();
@@ -36,7 +42,7 @@ class AssetController extends Controller
         $path = $file->store('artworks', 'public');
 
         $asset = Asset::create([
-            'organization_id' => $release->organization_id,
+            'organization_id' => $organizationId,
             'release_id' => $release->id,
             'asset_type' => 'image',
             'file_name' => $file->getClientOriginalName(),
