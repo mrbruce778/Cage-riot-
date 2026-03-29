@@ -191,9 +191,10 @@ class ReleaseController extends Controller
         $orgId = $user->currentOrganizationId();
         $userOrg = \App\Models\Organization::findOrFail($orgId);
         $organizationId = $userOrg->parent_id ?? $userOrg->id;
+        $userOrg = Organization::findOrFail($user->currentOrganizationId());
+        $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
 
-        // 🔍 Find release using normalized org
-        $release = Release::where('organization_id', $organizationId)
+        $release = Release::where('organization_id', $normalizedOrgId)
             ->findOrFail($id);
 
         $validated = $request->validate([
