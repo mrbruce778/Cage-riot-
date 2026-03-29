@@ -18,7 +18,7 @@ class AssetController extends Controller
             'file' => 'required|image|mimes:jpg,jpeg,png|max:5120',
         ]);
         
-        $user = Auth::user();
+        $user = auth()->user();
         $userOrg = $user->organization;
         $organizationId = $userOrg->parent_id ?? $userOrg->id;
         if (
