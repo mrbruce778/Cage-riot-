@@ -18,7 +18,7 @@ class Release extends Model
         'release_date' => 'date',
         'original_release_date' => 'date',
         'metadata' => 'array',
-];
+    ];
     public function tracks()
     {
         return $this->hasMany(Track::class, 'release_id');
@@ -37,5 +37,9 @@ class Release extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+    public function assets()
+    {
+        return $this->hasMany(Asset::class, 'release_id');
     }
 }
