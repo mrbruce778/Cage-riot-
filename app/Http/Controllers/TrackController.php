@@ -186,8 +186,8 @@ class TrackController extends Controller
     public function uploadAsset(Request $request, Track $track)
     {
         $request->validate([
-            'file' => 'required|file|max:51200',
-            'type' => 'required|in:audio,artwork'
+            'file' => 'nullable|file|max:51200',
+            'type' => 'nullable|in:audio,artwork'
         ]);
 
         $user = auth()->user();
