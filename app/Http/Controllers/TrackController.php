@@ -113,9 +113,11 @@ class TrackController extends Controller
     public function index($releaseId)
     {
         $user = Auth::user();
-        $orgId = $user->currentOrganizationId();
 
-        $tracks = Track::where('organization_id', $orgId)
+        $userOrg = Organization::findOrFail($user->currentOrganizationId());
+        $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
+
+        $tracks = Track::where('organization_id', $normalizedOrgId)
             ->where('release_id', $releaseId)
             ->orderBy('track_number')
             ->get();
@@ -190,17 +192,17 @@ class TrackController extends Controller
             'artwork' => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
         ]);
 
-        $user = auth()->user();
-
-        if (!$user) {
-            return response()->json(['error' => 'Unauthenticated'], 401);
+        $user = Auth::user();
+        $userOrg = Organization::findOrFail($user->currentOrganizationId());
+        $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
+        if (!$this->canManageRelease($user)) {
+            return response()->json(['error' => 'Forbidden'], 403);
         }
 
         $allowedOrgIds = $this->getAllowedOrgIds($user);
 
-        if (!in_array($track->organization_id, $allowedOrgIds)) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
+        $track = Track::where('organization_id', $normalizedOrgId)
+            ->findOrFail($track->id);
 
         DB::beginTransaction();
 
@@ -226,7 +228,7 @@ class TrackController extends Controller
 
                 $audioAsset = Asset::create([
                     'id' => (string) \Str::uuid(),
-                    'organization_id' => $track->organization_id,
+                    'organization_id' => $normalizedOrgId,
                     'track_id' => $track->id,
                     'asset_type' => 'audio',
                     'file_name' => $file->getClientOriginalName(),
@@ -257,7 +259,7 @@ class TrackController extends Controller
 
                 $artworkAsset = Asset::create([
                     'id' => (string) \Str::uuid(),
-                    'organization_id' => $track->organization_id,
+                    'organization_id' => $normalizedOrgId,
                     'track_id' => $track->id,
                     'asset_type' => 'artwork',
                     'file_name' => $file->getClientOriginalName(),
