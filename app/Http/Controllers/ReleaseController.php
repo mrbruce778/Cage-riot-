@@ -261,7 +261,7 @@ class ReleaseController extends Controller
             }
 
             \DB::commit();
-
+            $release->refresh();
             return response()->json([
                 'message' => 'Release updated successfully',
                 'data' => $release->load('artwork')
