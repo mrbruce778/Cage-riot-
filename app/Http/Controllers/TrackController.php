@@ -124,42 +124,37 @@ class TrackController extends Controller
     }
 
     // ✅ Update Track
-    public function update(Request $request, $id)
+    public function update(Request $request, $trackId)
     {
         $user = Auth::user();
-        $orgId = $user->currentOrganizationId();
 
         if (!$this->canManageRelease($user)) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
-        $track = Track::where('organization_id', $orgId)
-            ->findOrFail($id);
+        $allowedOrgIds = $this->getAllowedOrgIds($user);
+
+        $track = Track::whereIn('organization_id', $allowedOrgIds)
+            ->findOrFail($trackId);
 
         $validated = $request->validate([
-            'title' => 'sometimes|string|max:255',
-            'track_number' => 'sometimes|integer|min:1',
+            'title' => 'nullable|string|max:255',
         ]);
 
-        // ✅ Check uniqueness if track_number is being updated
-        if (isset($validated['track_number'])) {
-            $exists = Track::where('release_id', $track->release_id)
-                ->where('track_number', $validated['track_number'])
-                ->where('id', '!=', $track->id)
-                ->exists();
-
-            if ($exists) {
-                return response()->json([
-                    'error' => 'Track number already exists for this release'
-                ], 422);
-            }
+        // Prevent empty update (optional but clean)
+        if (empty($validated)) {
+            return response()->json([
+                'error' => 'Nothing to update'
+            ], 422);
         }
 
         $track->update($validated);
 
-        return response()->json($track);
+        return response()->json([
+            'message' => 'Track updated successfully',
+            'data' => $track->fresh()
+        ]);
     }
-
     // ✅ Delete Track
     public function destroy($id)
     {
@@ -186,5 +181,89 @@ class TrackController extends Controller
         })->findOrFail($id);
 
         return response()->json($track);
+    }
+    public function uploadAsset(Request $request, Track $track)
+    {
+        $request->validate([
+            'file' => 'required|file|max:51200',
+            'type' => 'required|in:audio,artwork'
+        ]);
+
+        $user = auth()->user();
+
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        $orgId = $user->currentOrganizationId();
+        $userOrg = Organization::find($orgId);
+
+        if (!$userOrg) {
+            return response()->json(['error' => 'Organization not found'], 404);
+        }
+
+        $allowedOrgIds = array_filter([
+            $userOrg->id,
+            $userOrg->parent_id
+        ]);
+
+        if (!in_array($track->organization_id, $allowedOrgIds)) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $type = $request->input('type');
+
+            // delete old asset of same type
+            $existingAsset = Asset::where('track_id', $track->id)
+                ->where('asset_type', $type)
+                ->first();
+
+            if ($existingAsset) {
+                if (Storage::disk('public')->exists($existingAsset->file_path)) {
+                    Storage::disk('public')->delete($existingAsset->file_path);
+                }
+                $existingAsset->delete();
+            }
+
+            $file = $request->file('file');
+
+            $folder = $type === 'audio' ? 'tracks/audio' : 'tracks/artwork';
+            $path = $file->store($folder, 'public');
+
+            $asset = Asset::create([
+                'id' => (string) \Str::uuid(),
+                'organization_id' => $userOrg->parent_id ?? $userOrg->id,
+                'track_id' => $track->id,
+                'asset_type' => $type,
+                'file_name' => $file->getClientOriginalName(),
+                'file_path' => $path,
+                'mime_type' => $file->getMimeType(),
+                'file_size' => $file->getSize(),
+                'created_by' => $user->id,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => ucfirst($type) . ' uploaded successfully',
+                'data' => $asset
+            ]);
+
+        } catch (\Exception $e) {
+
+            if (isset($path)) {
+                Storage::disk('public')->delete($path);
+            }
+
+            DB::rollBack();
+
+            return response()->json([
+                'error' => 'Upload failed',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 }

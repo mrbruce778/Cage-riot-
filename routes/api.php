@@ -61,6 +61,7 @@ Route::middleware(['auth:api'])->group(function () {
     Route::post('releases/{releaseId}/tracks', [TrackController::class, 'store']);
     Route::get('releases/{releaseId}/tracks', [TrackController::class, 'index']);
     Route::put('tracks/{id}', [TrackController::class, 'update']);
+    Route::post('/tracks/{track}/asset', [TrackController::class, 'uploadAsset']);
     Route::delete('tracks/{id}', [TrackController::class, 'destroy']);
     Route::get('tracks/{id}', [TrackController::class, 'show']);
 });
