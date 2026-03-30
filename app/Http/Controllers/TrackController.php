@@ -32,30 +32,71 @@ class TrackController extends Controller
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'track_number' => 'required|integer|min:1',
+            'audio' => 'required|file|mimes:wav,flac|max:51200',
+            'artwork' => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
         ]);
 
-        // ✅ Enforce unique track_number per release
-        $exists = Track::where('release_id', $releaseId)
-            ->where('track_number', $validated['track_number'])
-            ->exists();
+        DB::beginTransaction();
 
-        if ($exists) {
+        try {
+            // ✅ Track created WITHOUT track_number
+            $track = $release->tracks()->create([
+                'title' => $validated['title'],
+                'organization_id' => $orgId,
+                'created_by' => $user->id,
+            ]);
+
+            // 🎵 Audio
+            if ($request->hasFile('audio')) {
+                $file = $request->file('audio');
+                $path = $file->store('tracks/audio', 'public');
+
+                Asset::create([
+                    'organization_id' => $orgId,
+                    'release_id' => $releaseId,
+                    'track_id' => $track->id,
+                    'asset_type' => 'audio',
+                    'file_name' => $file->getClientOriginalName(),
+                    'file_path' => $path,
+                    'mime_type' => $file->getMimeType(),
+                    'file_size' => $file->getSize(),
+                    'created_by' => $user->id,
+                ]);
+            }
+
+            // 🖼️ Artwork
+            if ($request->hasFile('artwork')) {
+                $file = $request->file('artwork');
+                $path = $file->store('tracks/artwork', 'public');
+
+                Asset::create([
+                    'organization_id' => $orgId,
+                    'release_id' => $releaseId,
+                    'track_id' => $track->id,
+                    'asset_type' => 'artwork',
+                    'file_name' => $file->getClientOriginalName(),
+                    'file_path' => $path,
+                    'mime_type' => $file->getMimeType(),
+                    'file_size' => $file->getSize(),
+                    'created_by' => $user->id,
+                ]);
+            }
+
+            DB::commit();
+
             return response()->json([
-                'error' => 'Track number already exists for this release'
-            ], 422);
+                'track' => $track->load(['audio', 'artwork'])
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'error' => 'Something went wrong',
+                'message' => $e->getMessage()
+            ], 500);
         }
-
-        $track = $release->tracks()->create([
-            'title' => $validated['title'],
-            'track_number' => $validated['track_number'],
-            'organization_id' => $orgId,
-            'created_by' => $user->id,
-        ]);
-
-        return response()->json($track, 201);
     }
-
     // ✅ List Tracks
     public function index($releaseId)
     {
