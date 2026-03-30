@@ -14,6 +14,29 @@ use App\Models\Organization;
 
 class ReleaseController extends Controller
 {
+    private function resolveOrganizationIds($user)
+    {
+        $orgId = $user->currentOrganizationId();
+
+        if (!$orgId) {
+            return [];
+        }
+
+        $userOrg = Organization::find($orgId);
+
+        if (!$userOrg) {
+            return [];
+        }
+
+        // parent or self
+        $mainOrgId = $userOrg->parent_id ?? $userOrg->id;
+
+        // allow both parent + child access
+        return array_filter([
+            $mainOrgId,
+            $userOrg->id
+        ]);
+    }
     private function getAllowedOrgIds($user)
     {
         $org = Organization::findOrFail($user->currentOrganizationId());
@@ -152,10 +175,15 @@ class ReleaseController extends Controller
     public function show($id)
     {
         $user = Auth::user();
+        if (!$this->canManageRelease($user)) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+        $userOrg = Organization::findOrFail($user->currentOrganizationId());
+        $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
 
         $allowedOrgIds = $this->getAllowedOrgIds($user);
 
-        $release = Release::whereIn('organization_id', $allowedOrgIds)
+        $release = Release::whereIn('organization_id', $normalizedOrgId)
             ->with(['tracks', 'artwork'])
             ->findOrFail($id);
         return response()->json($release);
