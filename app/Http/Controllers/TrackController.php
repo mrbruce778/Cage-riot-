@@ -120,6 +120,7 @@ class TrackController extends Controller
         $tracks = Track::where('organization_id', $normalizedOrgId)
             ->where('release_id', $releaseId)
             ->orderBy('track_number')
+            ->with(['audio', 'artwork'])
             ->get();
 
         return response()->json($tracks);
