@@ -178,11 +178,14 @@ class TrackController extends Controller
     public function show($id)
     {
         $user = auth()->user();
+
         $userOrg = Organization::findOrFail($user->currentOrganizationId());
         $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
-        $track = \App\Models\Track::whereHas('release', function ($q) use ($normalizedOrgId) {
-            $q->where('organization_id', $normalizedOrgId);
-        })->findOrFail($id);
+
+        $track = Track::where('id', $id)
+            ->where('organization_id', $normalizedOrgId)
+            ->with(['audio', 'artwork']) // ✅ load assets
+            ->firstOrFail();
 
         return response()->json($track);
     }
