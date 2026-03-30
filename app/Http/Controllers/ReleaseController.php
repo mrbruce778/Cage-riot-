@@ -18,10 +18,10 @@ class ReleaseController extends Controller
     {
         $org = Organization::findOrFail($user->currentOrganizationId());
 
-        return array_filter([
-            $org->id,
-            $org->parent_id
-        ]);
+        // Always use parent if exists, otherwise self
+        $mainOrgId = $org->parent_id ?? $org->id;
+
+        return [$mainOrgId];
     }
     private function canManageRelease($user)
     {
