@@ -185,10 +185,9 @@ class TrackController extends Controller
     }
     public function uploadAsset(Request $request, Track $track)
     {
-        // ✅ Validation (flexible but safe)
         $request->validate([
-            'file' => 'nullable|file|max:51200',
-            'type' => 'nullable|in:audio,artwork'
+            'audio' => 'nullable|file|mimes:wav,flac,mp3|max:51200',
+            'artwork' => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
         ]);
 
         $user = auth()->user();
@@ -197,58 +196,39 @@ class TrackController extends Controller
             return response()->json(['error' => 'Unauthenticated'], 401);
         }
 
-        $userOrg = Organization::findOrFail($user->currentOrganizationId());
-        $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
-
-        // ✅ Authorization (IMPORTANT)
         $allowedOrgIds = $this->getAllowedOrgIds($user);
 
         if (!in_array($track->organization_id, $allowedOrgIds)) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        // ✅ Optional validation logic
-        if ($request->has('type') && !$request->hasFile('file')) {
-            return response()->json([
-                'error' => 'File is required when type is provided'
-            ], 422);
-        }
-
         DB::beginTransaction();
 
         try {
-            $file = $request->file('file');
-            $type = $request->input('type');
 
-            // ✅ Only process if file exists
-            if ($file && $type) {
+            $responses = [];
 
-                // 📁 Decide folder
-                $folder = $type === 'audio'
-                    ? 'tracks/audio'
-                    : 'tracks/artwork';
+            // 🎵 AUDIO
+            if ($request->hasFile('audio')) {
+                $file = $request->file('audio');
 
-                // 🗑️ Delete old asset (same type)
-                $existingAsset = Asset::where('track_id', $track->id)
-                    ->where('asset_type', $type)
+                // delete old audio
+                $existing = Asset::where('track_id', $track->id)
+                    ->where('asset_type', 'audio')
                     ->first();
 
-                if ($existingAsset) {
-                    if (Storage::disk('public')->exists($existingAsset->file_path)) {
-                        Storage::disk('public')->delete($existingAsset->file_path);
-                    }
-                    $existingAsset->delete();
+                if ($existing) {
+                    Storage::disk('public')->delete($existing->file_path);
+                    $existing->delete();
                 }
 
-                // 📦 Store new file
-                $path = $file->store($folder, 'public');
+                $path = $file->store('tracks/audio', 'public');
 
-                // 💾 Save asset
-                $asset = Asset::create([
+                $audioAsset = Asset::create([
                     'id' => (string) \Str::uuid(),
-                    'organization_id' => $normalizedOrgId,
+                    'organization_id' => $track->organization_id,
                     'track_id' => $track->id,
-                    'asset_type' => $type,
+                    'asset_type' => 'audio',
                     'file_name' => $file->getClientOriginalName(),
                     'file_path' => $path,
                     'mime_type' => $file->getMimeType(),
@@ -256,26 +236,54 @@ class TrackController extends Controller
                     'created_by' => $user->id,
                 ]);
 
-                DB::commit();
+                $responses['audio'] = $audioAsset;
+            }
 
+            // 🖼️ ARTWORK
+            if ($request->hasFile('artwork')) {
+                $file = $request->file('artwork');
+
+                // delete old artwork
+                $existing = Asset::where('track_id', $track->id)
+                    ->where('asset_type', 'artwork')
+                    ->first();
+
+                if ($existing) {
+                    Storage::disk('public')->delete($existing->file_path);
+                    $existing->delete();
+                }
+
+                $path = $file->store('tracks/artwork', 'public');
+
+                $artworkAsset = Asset::create([
+                    'id' => (string) \Str::uuid(),
+                    'organization_id' => $track->organization_id,
+                    'track_id' => $track->id,
+                    'asset_type' => 'artwork',
+                    'file_name' => $file->getClientOriginalName(),
+                    'file_path' => $path,
+                    'mime_type' => $file->getMimeType(),
+                    'file_size' => $file->getSize(),
+                    'created_by' => $user->id,
+                ]);
+
+                $responses['artwork'] = $artworkAsset;
+            }
+
+            DB::commit();
+
+            if (empty($responses)) {
                 return response()->json([
-                    'message' => ucfirst($type) . ' uploaded successfully',
-                    'data' => $asset
+                    'message' => 'No file uploaded'
                 ]);
             }
 
-            // ✅ If no file uploaded (valid case)
-            DB::commit();
-
             return response()->json([
-                'message' => 'No file uploaded, nothing changed'
+                'message' => 'Assets uploaded successfully',
+                'data' => $responses
             ]);
 
         } catch (\Exception $e) {
-
-            if (isset($path)) {
-                Storage::disk('public')->delete($path);
-            }
 
             DB::rollBack();
 
