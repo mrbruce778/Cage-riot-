@@ -178,9 +178,10 @@ class TrackController extends Controller
     public function show($id)
     {
         $user = auth()->user();
-
+        $userOrg = Organization::findOrFail($user->currentOrganizationId());
+        $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
         $track = \App\Models\Track::whereHas('release', function ($q) use ($user) {
-            $q->where('organization_id', $user->currentOrganizationId());
+            $q->where('organization_id', $normalizedOrgId);
         })->findOrFail($id);
 
         return response()->json($track);
