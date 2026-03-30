@@ -14,84 +14,88 @@ class AssetController extends Controller
 {
 
 
-public function uploadArtwork(Request $request, Release $release)
-{
-    $request->validate([
-        'file' => 'required|image|mimes:jpg,jpeg,png|max:5120',
-    ]);
+    public function uploadArtwork(Request $request, Release $release)
+    {
+        $request->validate([
+            'file' => 'required|image|mimes:jpg,jpeg,png|max:5120',
+        ]);
 
-    $user = auth()->user();
+        $user = auth()->user();
 
-    if (!$user) {
-        return response()->json(['error' => 'Unauthenticated'], 401);
-    }
-
-    // ✅ get org from JWT
-    $orgId = $user->currentOrganizationId();
-
-    if (!$orgId) {
-        return response()->json(['error' => 'Organization missing in token'], 400);
-    }
-
-    // ✅ fetch organization
-    $userOrg = Organization::find($orgId);
-
-    if (!$userOrg) {
-        return response()->json(['error' => 'Organization not found'], 404);
-    }
-
-    // ✅ use parent if exists
-    $organizationId = $userOrg->parent_id ?? $userOrg->id;
-
-    // ✅ authorization check
-    if (
-        $release->organization_id !== $userOrg->id &&
-        $release->organization_id !== $userOrg->parent_id
-    ) {
-        return response()->json(['error' => 'Unauthorized'], 403);
-    }
-
-    DB::beginTransaction();
-
-    try {
-        if ($release->artwork) {
-            Storage::disk('public')->delete($release->artwork->file_path);
-            $release->artwork->delete();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
         }
 
-        $file = $request->file('file');
-        $path = $file->store('artworks', 'public');
+        $orgId = $user->currentOrganizationId();
 
-        $asset = Asset::create([
-            'organization_id' => $organizationId,
-            'release_id' => $release->id,
-            'asset_type' => 'image',
-            'file_name' => $file->getClientOriginalName(),
-            'file_path' => $path,
-            'mime_type' => $file->getMimeType(),
-            'file_size' => $file->getSize(),
-            'created_by' => $user->id,
-        ]);
-
-        $release->update([
-            'artwork_asset_id' => $asset->id
-        ]);
-
-        DB::commit();
-
-        return response()->json([
-            'message' => 'Artwork uploaded successfully',
-            'asset' => $asset,
-        ]);
-
-    } catch (\Exception $e) {
-        if (isset($path)) {
-            Storage::disk('public')->delete($path);
+        if (!$orgId) {
+            return response()->json(['error' => 'Organization missing'], 400);
         }
 
-        DB::rollBack();
+        $userOrg = Organization::find($orgId);
 
-        return response()->json(['error' => 'upload failed'], 500);
+        if (!$userOrg) {
+            return response()->json(['error' => 'Organization not found'], 404);
+        }
+
+        $allowedOrgIds = array_filter([
+            $userOrg->id,
+            $userOrg->parent_id
+        ]);
+
+        if (!in_array($release->organization_id, $allowedOrgIds)) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // delete old artwork
+            if ($release->artwork) {
+                if (Storage::disk('public')->exists($release->artwork->file_path)) {
+                    Storage::disk('public')->delete($release->artwork->file_path);
+                }
+                $release->artwork->delete();
+            }
+
+            $file = $request->file('file');
+            $path = $file->store('artworks', 'public');
+
+            $asset = Asset::create([
+                'id' => (string) \Str::uuid(),
+                'organization_id' => $userOrg->parent_id ?? $userOrg->id,
+                'release_id' => $release->id,
+                'asset_type' => 'artwork',
+                'file_name' => $file->getClientOriginalName(),
+                'file_path' => $path,
+                'mime_type' => $file->getMimeType(),
+                'file_size' => $file->getSize(),
+                'created_by' => $user->id,
+            ]);
+
+            $release->update([
+                'artwork_asset_id' => $asset->id
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Artwork uploaded successfully',
+                'data' => $release->fresh()->load('artwork')
+            ]);
+
+        } catch (\Exception $e) {
+
+            if (isset($path)) {
+                Storage::disk('public')->delete($path);
+            }
+
+            DB::rollBack();
+
+            return response()->json([
+                'error' => 'Upload failed',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
-}
 }

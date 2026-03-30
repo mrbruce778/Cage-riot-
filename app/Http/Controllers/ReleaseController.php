@@ -161,46 +161,14 @@ class ReleaseController extends Controller
         return response()->json($release);
     }
 
-    // public function update(Request $request, $id)
-    // {
-    //     $user = Auth::user();
-    //     if (!$this->canManageRelease($user)) {
-    //         return response()->json(['error' => 'Forbidden'], 403);
-    //     }
-    //     $orgId = $user->currentOrganizationId();
-    //     $userOrg = \App\Models\Organization::findOrFail($orgId);
-    //     $organizationId = $userOrg->parent_id ?? $userOrg->id;
-
-    //     $release = Release::where('organization_id', $user->currentOrganizationId())
-    //         ->findOrFail($id);
-        
-    //     $validated = $request->validate([
-    //         'title' => 'sometimes|string|max:255',
-    //         'version_title' => 'nullable|string|max:255',
-    //         'primary_artist_name' => 'sometimes|string|max:255',
-    //         'release_type' => 'sometimes|string|max:50',
-    //         'upc' => 'nullable|string|max:50',
-    //         'label_name' => 'nullable|string|max:255',
-    //         'release_date' => 'nullable|date',
-    //         'original_release_date' => 'nullable|date',
-    //         'metadata' => 'nullable|array',
-    //         'status' => 'nullable|string',
-    //     ]);
-
-    //     $release->update($validated);
-
-    //     return response()->json($release);
-    // }
     public function update(Request $request, $id)
     {
-        dd($request->all(), $request->hasFile('artwork'));
         $user = Auth::user();
 
         if (!$this->canManageRelease($user)) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
-        
         $allowedOrgIds = $this->getAllowedOrgIds($user);
 
         $release = Release::whereIn('organization_id', $allowedOrgIds)
@@ -217,66 +185,14 @@ class ReleaseController extends Controller
             'original_release_date' => 'nullable|date',
             'metadata' => 'nullable|array',
             'status' => 'nullable|string',
-
-            // 🖼 artwork update
-            'artwork' => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
         ]);
 
-        \DB::beginTransaction();
+        $release->update($validated);
 
-        try {
-            // ❗ Remove artwork from normal update
-            $releaseData = collect($validated)->except('artwork')->toArray();
-
-            // 🧱 Update release fields
-            $release->update($releaseData);
-
-            // 🖼 Handle artwork update
-            if ($request->hasFile('artwork')) {
-
-                // delete old artwork if exists
-                if ($release->artwork) {
-                    \Storage::disk('public')->delete($release->artwork->file_path);
-                    $release->artwork->delete();
-                }
-
-                $file = $request->file('artwork');
-                $path = $file->store('artworks', 'public');
-
-                $asset = Asset::create([
-                    'id' => (string) \Str::uuid(),
-                    'organization_id' => $organizationId,
-                    'release_id' => $release->id,
-                    'asset_type' => 'artwork',
-                    'file_name' => $file->getClientOriginalName(),
-                    'file_path' => $path,
-                    'mime_type' => $file->getMimeType(),
-                    'file_size' => $file->getSize(),
-                    'created_by' => $user->id,
-                ]);
-
-                // attach new artwork
-                $release->update([
-                    'artwork_asset_id' => $asset->id
-                ]);
-            }
-
-            \DB::commit();
-            $release->refresh();
-            return response()->json([
-                'message' => 'Release updated successfully',
-                'data' => $release->load('artwork')
-            ]);
-
-        } catch (\Exception $e) {
-
-            \DB::rollBack();
-
-            return response()->json([
-                'error' => 'Update failed',
-                'message' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'message' => 'Release updated successfully',
+            'data' => $release->fresh()
+        ]);
     }
     public function destroy($id)
     {
