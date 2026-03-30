@@ -127,14 +127,15 @@ class TrackController extends Controller
     public function update(Request $request, $trackId)
     {
         $user = Auth::user();
-
+        $userOrg = Organization::findOrFail($user->currentOrganizationId());
+        $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
         if (!$this->canManageRelease($user)) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
         $allowedOrgIds = $this->getAllowedOrgIds($user);
 
-        $track = Track::whereIn('organization_id', $allowedOrgIds)
+        $track = Track::whereIn('organization_id', $normalizedOrgId)
             ->findOrFail($trackId);
 
         $validated = $request->validate([
@@ -194,9 +195,8 @@ class TrackController extends Controller
         if (!$user) {
             return response()->json(['error' => 'Unauthenticated'], 401);
         }
-
-        $orgId = $user->currentOrganizationId();
-        $userOrg = Organization::find($orgId);
+        $userOrg = Organization::findOrFail($user->currentOrganizationId());
+        $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
 
         if (!$userOrg) {
             return response()->json(['error' => 'Organization not found'], 404);
@@ -207,7 +207,7 @@ class TrackController extends Controller
             $userOrg->parent_id
         ]);
 
-        if (!in_array($track->organization_id, $allowedOrgIds)) {
+        if (!in_array($track->organization_id, $normalizedOrgId)) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -235,7 +235,7 @@ class TrackController extends Controller
 
             $asset = Asset::create([
                 'id' => (string) \Str::uuid(),
-                'organization_id' => $userOrg->parent_id ?? $userOrg->id,
+                'organization_id' => $normalizedOrgId,
                 'track_id' => $track->id,
                 'asset_type' => $type,
                 'file_name' => $file->getClientOriginalName(),
