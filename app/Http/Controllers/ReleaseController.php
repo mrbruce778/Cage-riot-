@@ -206,10 +206,10 @@ class ReleaseController extends Controller
             ->findOrFail($id);
 
         $validated = $request->validate([
-            'title' => 'sometimes|string|max:255',
+            'title' => 'nullable|string|max:255',
             'version_title' => 'nullable|string|max:255',
-            'primary_artist_name' => 'sometimes|string|max:255',
-            'release_type' => 'sometimes|string|max:50',
+            'primary_artist_name' => 'nullable|string|max:255',
+            'release_type' => 'nullable|string|max:50',
             'upc' => 'nullable|string|max:50',
             'label_name' => 'nullable|string|max:255',
             'release_date' => 'nullable|date',
