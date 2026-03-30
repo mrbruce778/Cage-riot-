@@ -207,10 +207,8 @@ class TrackController extends Controller
             $userOrg->parent_id
         ]);
 
-        if (!in_array($track->organization_id, $normalizedOrgId)) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
+        $track = Track::where('organization_id', $normalizedOrgId)
+            ->findOrFail($trackId);
         DB::beginTransaction();
 
         try {
