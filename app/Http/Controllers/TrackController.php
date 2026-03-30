@@ -135,7 +135,7 @@ class TrackController extends Controller
 
         $allowedOrgIds = $this->getAllowedOrgIds($user);
 
-        $track = Track::whereIn('organization_id', $normalizedOrgId)
+        $track = Track::where('organization_id', $normalizedOrgId)
             ->findOrFail($trackId);
 
         $validated = $request->validate([
