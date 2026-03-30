@@ -12,6 +12,15 @@ use App\Models\Asset;
 
 class TrackController extends Controller
 {
+    private function getAllowedOrgIds($user)
+    {
+        $org = Organization::findOrFail($user->currentOrganizationId());
+
+        // Always use parent if exists, otherwise self
+        $mainOrgId = $org->parent_id ?? $org->id;
+
+        return [$mainOrgId];
+    }
     private function canManageRelease($user)
     {
         $orgId = $user->currentOrganizationId();
@@ -25,12 +34,12 @@ class TrackController extends Controller
     {
         $user = Auth::user();
         $orgId = $user->currentOrganizationId();
-
+        $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
         if (!$this->canManageRelease($user)) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
-        $release = Release::where('organization_id', $orgId)
+        $release = Release::where('organization_id', $normalizedOrgId)
             ->findOrFail($releaseId);
 
         $validated = $request->validate([
