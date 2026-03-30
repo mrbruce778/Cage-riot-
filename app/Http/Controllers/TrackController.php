@@ -162,13 +162,13 @@ class TrackController extends Controller
     public function destroy($id)
     {
         $user = Auth::user();
-        $orgId = $user->currentOrganizationId();
-
+        $userOrg = Organization::findOrFail($user->currentOrganizationId());
+        $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
         if (!$this->canManageRelease($user)) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
-        $track = Track::where('organization_id', $orgId)
+        $track = Track::where('organization_id', $normalizedOrgId)
             ->findOrFail($id);
 
         $track->delete();
