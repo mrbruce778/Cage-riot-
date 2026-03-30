@@ -193,6 +193,7 @@ class ReleaseController extends Controller
     // }
     public function update(Request $request, $id)
     {
+        dd($request->all(), $request->hasFile('artwork'));
         $user = Auth::user();
 
         if (!$this->canManageRelease($user)) {
