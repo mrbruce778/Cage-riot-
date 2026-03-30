@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\Asset;
-
+use App\Models\Organization;
 
 class TrackController extends Controller
 {
@@ -33,7 +33,7 @@ class TrackController extends Controller
     public function store(Request $request, $releaseId)
     {
         $user = Auth::user();
-        $orgId = $user->currentOrganizationId();
+        $userOrg = Organization::findOrFail($user->currentOrganizationId());
         $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
         if (!$this->canManageRelease($user)) {
             return response()->json(['error' => 'Forbidden'], 403);
