@@ -54,7 +54,7 @@ class TrackController extends Controller
             // ✅ Track created WITHOUT track_number
             $track = $release->tracks()->create([
                 'title' => $validated['title'],
-                'organization_id' => $orgId,
+                'organization_id' => $normalizedOrgId,
                 'created_by' => $user->id,
             ]);
 
@@ -64,7 +64,7 @@ class TrackController extends Controller
                 $path = $file->store('tracks/audio', 'public');
 
                 Asset::create([
-                    'organization_id' => $orgId,
+                    'organization_id' => $normalizedOrgId,
                     'release_id' => $releaseId,
                     'track_id' => $track->id,
                     'asset_type' => 'audio',
@@ -82,7 +82,7 @@ class TrackController extends Controller
                 $path = $file->store('tracks/artwork', 'public');
 
                 Asset::create([
-                    'organization_id' => $orgId,
+                    'organization_id' => $normalizedOrgId,
                     'release_id' => $releaseId,
                     'track_id' => $track->id,
                     'asset_type' => 'artwork',
