@@ -208,7 +208,7 @@ class TrackController extends Controller
         ]);
 
         $track = Track::where('organization_id', $normalizedOrgId)
-            ->findOrFail($trackId);
+            ->findOrFail($track->id);
         DB::beginTransaction();
 
         try {
