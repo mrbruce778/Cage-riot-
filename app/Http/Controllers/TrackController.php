@@ -180,7 +180,7 @@ class TrackController extends Controller
         $user = auth()->user();
         $userOrg = Organization::findOrFail($user->currentOrganizationId());
         $normalizedOrgId = $userOrg->parent_id ?? $userOrg->id;
-        $track = \App\Models\Track::whereHas('release', function ($q) use ($user) {
+        $track = \App\Models\Track::whereHas('release', function ($q) use ($normalizedOrgId) {
             $q->where('organization_id', $normalizedOrgId);
         })->findOrFail($id);
 
