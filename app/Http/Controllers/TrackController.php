@@ -6,6 +6,7 @@ use App\Models\Release;
 use App\Models\Track;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class TrackController extends Controller
 {
