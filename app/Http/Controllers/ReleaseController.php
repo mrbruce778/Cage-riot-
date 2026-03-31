@@ -54,7 +54,9 @@ class ReleaseController extends Controller
         $allowedOrgIds = $this->getAllowedOrgIds($user);
 
         $releases = Release::whereIn('organization_id', $allowedOrgIds)
-            ->with('artwork')
+            ->with(['artwork',
+                    'creator:id,name'
+            ])
             ->latest()
             ->get();
 
@@ -156,7 +158,7 @@ class ReleaseController extends Controller
         $allowedOrgIds = $this->getAllowedOrgIds($user);
 
         $release = Release::whereIn('organization_id', $allowedOrgIds)
-            ->with(['tracks', 'artwork'])
+            ->with(['tracks', 'artwork','creator:id,name'])
             ->findOrFail($id);
         return response()->json($release);
     }

@@ -120,7 +120,7 @@ class TrackController extends Controller
         $tracks = Track::where('organization_id', $normalizedOrgId)
             ->where('release_id', $releaseId)
             ->orderBy('track_number')
-            ->with(['audio', 'artwork'])
+            ->with(['audio', 'artwork','creator:id,name'])
             ->get();
 
         return response()->json($tracks);
@@ -185,7 +185,7 @@ class TrackController extends Controller
 
         $track = Track::where('id', $id)
             ->where('organization_id', $normalizedOrgId)
-            ->with(['audio', 'artwork']) // ✅ load assets
+            ->with(['audio', 'artwork','creator:id,name']) // ✅ load assets
             ->firstOrFail();
 
         return response()->json($track);
