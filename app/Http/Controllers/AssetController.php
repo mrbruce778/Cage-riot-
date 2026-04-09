@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
+use Aws\S3\S3Client;
 use App\Models\Organization;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -97,5 +98,39 @@ class AssetController extends Controller
                 'message' => $e->getMessage()
             ], 500);
         }
+    }
+    public function getSignedUploadUrl(Request $request)
+    {
+        $user = auth()->user();
+
+        $request->validate([
+            'file_name' => 'required|string',
+            'file_type' => 'required|string',
+        ]);
+
+        $key = 'uploads/' . Str::uuid() . '-' . $request->file_name;
+
+        $client = new S3Client([
+            'version' => 'latest',
+            'region' => 'auto',
+            'endpoint' => env('R2_ENDPOINT'),
+            'credentials' => [
+                'key' => env('R2_ACCESS_KEY'),
+                'secret' => env('R2_SECRET_KEY'),
+            ],
+        ]);
+
+        $cmd = $client->getCommand('PutObject', [
+            'Bucket' => env('R2_BUCKET'),
+            'Key' => $key,
+            'ContentType' => $request->file_type,
+        ]);
+
+        $signedUrl = (string) $client->createPresignedRequest($cmd, '+10 minutes')->getUri();
+
+        return response()->json([
+            'upload_url' => $signedUrl,
+            'file_path' => $key,
+        ]);
     }
 }

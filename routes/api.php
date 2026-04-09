@@ -55,7 +55,8 @@ Route::middleware(['auth:api'])->group(function () {
 
     Route::apiResource('releases', ReleaseController::class);
 
-    //tracks
+    //signed url 
+    Route::post('/assets/signed-upload', [AssetController::class, 'getSignedUploadUrl']);
 
     // Tracks
     Route::post('releases/{releaseId}/tracks', [TrackController::class, 'store']);

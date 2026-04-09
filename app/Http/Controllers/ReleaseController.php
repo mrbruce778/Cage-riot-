@@ -87,7 +87,11 @@ class ReleaseController extends Controller
             'release_date' => 'nullable|date',
             'original_release_date' => 'nullable|date',
             'metadata' => 'nullable|array',
-            'artwork' => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
+            'file_path' => 'nullable|string',
+            'file_name' => 'nullable|string',
+            'mime_type' => 'nullable|string',
+            'file_size' => 'nullable|integer',
+            // 'artwork' => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
         ]);
 
         // 🧠 Normalize organization (parent or self)
@@ -98,8 +102,13 @@ class ReleaseController extends Controller
         DB::beginTransaction();
 
         try {
-            // ❗ Remove artwork from release data
-            $releaseData = collect($validated)->except('artwork')->toArray();
+           
+            $releaseData = collect($validated)->except([
+                    'file_path',
+                    'file_name',
+                    'mime_type',
+                    'file_size'
+                ])->toArray();
 
             // 🧱 Create release
             $release = Release::create([
@@ -110,20 +119,20 @@ class ReleaseController extends Controller
             ]);
 
             // 🖼 Upload artwork if exists
-            if ($request->hasFile('artwork')) {
+            if ($request->filled('file_path')) {
 
-                $file = $request->file('artwork');
-                $path = $file->store('artworks', 'public');
+                $path = $request->input('file_path');
 
                 $asset = Asset::create([
                     'id' => (string) Str::uuid(),
                     'organization_id' => $organizationId,
                     'release_id' => $release->id,
                     'asset_type' => 'artwork',
-                    'file_name' => $file->getClientOriginalName(),
+                    'file_name' => $request->input('file_name'),
                     'file_path' => $path,
-                    'mime_type' => $file->getMimeType(),
-                    'file_size' => $file->getSize(),
+                    'mime_type' => $request->input('mime_type'),
+                    // 'file_size' => $file->getSize(),
+                    'file_size' => $request->input('file_size'),
                     'created_by' => $user->id,
                 ]);
 
