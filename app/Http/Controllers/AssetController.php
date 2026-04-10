@@ -113,11 +113,11 @@ class AssetController extends Controller
 
         $client = new S3Client([
             'version' => 'latest',
-            'region' => 'auto',
-            'endpoint' => env('R2_ENDPOINT'),
+            'region' => config('filesystems.disks.r2.region'),
+            'endpoint' => config('filesystems.disks.r2.endpoint'),
             'credentials' => [
-                'key' => env('R2_ACCESS_KEY'),
-                'secret' => env('R2_SECRET_KEY'),
+                'key' => config('filesystems.disks.r2.key'),
+                'secret' => config('filesystems.disks.r2.secret'),
             ],
         ]);
 
