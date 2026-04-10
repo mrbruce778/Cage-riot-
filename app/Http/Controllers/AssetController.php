@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Asset;
 use App\Models\Release;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class AssetController extends Controller
 {
