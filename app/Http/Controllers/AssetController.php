@@ -115,17 +115,20 @@ class AssetController extends Controller
             'version' => 'latest',
             'region' => config('filesystems.disks.r2.region'),
             'endpoint' => config('filesystems.disks.r2.endpoint'),
+            'use_path_style_endpoint' => true, 
             'credentials' => [
                 'key' => config('filesystems.disks.r2.key'),
                 'secret' => config('filesystems.disks.r2.secret'),
             ],
         ]);
 
-        dd(config('filesystems.disks.r2.bucket'));
         $cmd = $client->getCommand('PutObject', [
             'Bucket' => config('filesystems.disks.r2.bucket'),
             'Key' => $key,
             'ContentType' => $request->file_type,
+            '@http' => [
+                'verify' => false, // sometimes needed for R2 SSL
+            ],
         ]);
 
         $signedUrl = (string) $client->createPresignedRequest($cmd, '+10 minutes')->getUri();
