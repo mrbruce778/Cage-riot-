@@ -116,6 +116,7 @@ class AssetController extends Controller
             'region' => config('filesystems.disks.r2.region'),
             'endpoint' => config('filesystems.disks.r2.endpoint'),
             'credentials' => [
+                'Bucket' => config('filesystems.disks.r2.bucket'),
                 'key' => config('filesystems.disks.r2.key'),
                 'secret' => config('filesystems.disks.r2.secret'),
             ],
