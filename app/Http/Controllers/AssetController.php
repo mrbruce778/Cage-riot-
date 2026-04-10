@@ -121,8 +121,9 @@ class AssetController extends Controller
             ],
         ]);
 
+        dd(config('filesystems.disks.r2.bucket'));
         $cmd = $client->getCommand('PutObject', [
-            'Bucket' => env('R2_BUCKET'),
+            'Bucket' => config('filesystems.disks.r2.bucket'),
             'Key' => $key,
             'ContentType' => $request->file_type,
         ]);
