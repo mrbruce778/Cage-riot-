@@ -62,8 +62,98 @@ class ReleaseController extends Controller
 
         return response()->json($releases);
     }
-
     public function store(Request $request)
+    {
+        $user = Auth::user();
+
+        // 🔐 Permission check
+        if (!$this->canManageRelease($user)) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        // 🧠 Decode metadata if string
+        if ($request->has('metadata')) {
+            $request->merge([
+                'metadata' => json_decode($request->metadata, true)
+            ]);
+        }
+
+        // ✅ Validation
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'version_title' => 'nullable|string|max:255',
+            'primary_artist_name' => 'required|string|max:255',
+            'release_type' => 'required|string|max:50',
+            'upc' => 'nullable|string|max:50',
+            'label_name' => 'nullable|string|max:255',
+            'release_date' => 'nullable|date',
+            'original_release_date' => 'nullable|date',
+            'metadata' => 'nullable|array',
+
+            // ✅ NEW: artwork upload like track
+            'artwork' => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
+        ]);
+
+        // 🧠 Normalize organization
+        $orgId = $user->currentOrganizationId();
+        $userOrg = Organization::findOrFail($orgId);
+        $organizationId = $userOrg->parent_id ?? $userOrg->id;
+
+        DB::beginTransaction();
+
+        try {
+
+            $releaseData = collect($validated)->except(['artwork'])->toArray();
+
+            // 🧱 Create release
+            $release = Release::create([
+                ...$releaseData,
+                'organization_id' => $organizationId,
+                'created_by' => $user->id,
+                'status' => 'draft',
+            ]);
+
+            // 🖼️ Artwork upload (LIKE TRACK API)
+            if ($request->hasFile('artwork')) {
+
+                $file = $request->file('artwork');
+                $path = $file->store('releases/artwork', 'public');
+
+                $asset = Asset::create([
+                    'organization_id' => $organizationId,
+                    'release_id' => $release->id,
+                    'asset_type' => 'artwork',
+                    'file_name' => $file->getClientOriginalName(),
+                    'file_path' => $path,
+                    'mime_type' => $file->getMimeType(),
+                    'file_size' => $file->getSize(),
+                    'created_by' => $user->id,
+                ]);
+
+                // 🔗 Attach artwork to release
+                $release->update([
+                    'artwork_asset_id' => $asset->id
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Release created successfully',
+                'data' => $release->load('artwork')
+            ], 201);
+
+        } catch (\Exception $e) {
+
+            DB::rollBack();
+
+            return response()->json([
+                'error' => 'Failed to create release',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+    public function storejustmetadata(Request $request)
     {
         $user = Auth::user();
 
