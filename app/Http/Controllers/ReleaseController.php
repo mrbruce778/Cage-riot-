@@ -293,7 +293,6 @@ class ReleaseController extends Controller
             'metadata' => 'nullable|array',
             'status' => 'nullable|string',
 
-            // 👇 add these
             'file_path' => 'nullable|string',
             'file_name' => 'nullable|string',
             'mime_type' => 'nullable|string',
