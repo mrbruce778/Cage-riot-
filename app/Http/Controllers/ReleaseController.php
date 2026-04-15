@@ -275,6 +275,12 @@ class ReleaseController extends Controller
         $release = Release::whereIn('organization_id', $allowedOrgIds)
             ->findOrFail($id);
 
+        if ($request->has('metadata')) {
+            $request->merge([
+                'metadata' => json_decode($request->metadata, true)
+            ]);
+        }
+
         $validated = $request->validate([
             'title' => 'nullable|string|max:255',
             'version_title' => 'nullable|string|max:255',
@@ -286,14 +292,62 @@ class ReleaseController extends Controller
             'original_release_date' => 'nullable|date',
             'metadata' => 'nullable|array',
             'status' => 'nullable|string',
+
+            // 👇 add these
+            'file_path' => 'nullable|string',
+            'file_name' => 'nullable|string',
+            'mime_type' => 'nullable|string',
+            'file_size' => 'nullable|integer',
         ]);
 
-        $release->update($validated);
+        DB::beginTransaction();
 
-        return response()->json([
-            'message' => 'Release updated successfully',
-            'data' => $release->fresh()
-        ]);
+        try {
+
+            // 🧱 Update release fields
+            $release->update(collect($validated)->except([
+                'file_path',
+                'file_name',
+                'mime_type',
+                'file_size'
+            ])->toArray());
+
+            // 🖼 Update artwork if provided
+            if ($request->filled('file_path')) {
+
+                $asset = Asset::create([
+                    'id' => (string) Str::uuid(),
+                    'organization_id' => $release->organization_id,
+                    'release_id' => $release->id,
+                    'asset_type' => 'artwork',
+                    'file_name' => $request->file_name,
+                    'file_path' => $request->file_path,
+                    'mime_type' => $request->mime_type,
+                    'file_size' => $request->file_size,
+                    'created_by' => $user->id,
+                ]);
+
+                // 🔁 Replace artwork
+                $release->update([
+                    'artwork_asset_id' => $asset->id
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Release updated successfully',
+                'data' => $release->fresh()->load('artwork')
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'error' => 'Failed to update release',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
     public function destroy($id)
     {
