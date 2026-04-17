@@ -275,11 +275,11 @@ class ReleaseController extends Controller
         $release = Release::whereIn('organization_id', $allowedOrgIds)
             ->findOrFail($id);
 
-        if ($request->has('metadata')) {
-            $request->merge([
-                'metadata' => json_decode($request->metadata, true)
-            ]);
-        }
+        // if ($request->has('metadata')) {
+        //     $request->merge([
+        //         'metadata' => json_decode($request->metadata, true)
+        //     ]);
+        // }
 
         $validated = $request->validate([
             'title' => 'nullable|string|max:255',
