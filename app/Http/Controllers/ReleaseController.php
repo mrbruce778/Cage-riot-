@@ -62,7 +62,7 @@ class ReleaseController extends Controller
 
         return response()->json($releases);
     }
-    public function store(Request $request)
+    public function oldstore(Request $request)
     {
         $user = Auth::user();
 
@@ -153,7 +153,7 @@ class ReleaseController extends Controller
             ], 500);
         }
     }
-    public function storejustmetadata(Request $request)
+    public function store(Request $request)
     {
         $user = Auth::user();
 
