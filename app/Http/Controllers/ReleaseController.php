@@ -161,11 +161,11 @@ class ReleaseController extends Controller
         if (!$this->canManageRelease($user)) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
-        if ($request->has('metadata')) {
-            $request->merge([
-            'metadata' => json_decode($request->metadata, true)
-            ]       );
-        }
+        // if ($request->has('metadata')) {
+        //     $request->merge([
+        //     'metadata' => json_decode($request->metadata, true)
+        //     ]       );
+        // }
         // ✅ Validation
         $validated = $request->validate([
             'title' => 'required|string|max:255',
