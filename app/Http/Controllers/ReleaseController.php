@@ -62,10 +62,15 @@ class ReleaseController extends Controller
         $releases->transform(function ($release) {
 
             if ($release->artwork && $release->artwork->file_path) {
-                $release->artwork->url = Storage::disk('s3')->temporaryUrl(
-                    $release->artwork->file_path,
-                    now()->addMinutes(15)
-                );
+                if(str_starts_with($release->artwork->file_path,'uploads/'))
+                    {
+                        $url = Storage::disk('s3')->temporaryUrl($release->artwork->file_path,
+                    now()->addMinutes(10));
+                    }
+                // $release->artwork->url = Storage::disk('s3')->temporaryUrl(
+                //     $release->artwork->file_path,
+                //     now()->addMinutes(15)
+                // );
             }
 
             return $release;
