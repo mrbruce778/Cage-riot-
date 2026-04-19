@@ -59,7 +59,17 @@ class ReleaseController extends Controller
             ])
             ->latest()
             ->get();
+        $releases->transform(function ($release) {
 
+            if ($release->artwork && $release->artwork->file_path) {
+                $release->artwork->url = Storage::disk('s3')->temporaryUrl(
+                    $release->artwork->file_path,
+                    now()->addMinutes(15)
+                );
+            }
+
+            return $release;
+        });
         return response()->json($releases);
     }
     public function oldstore(Request $request)
