@@ -276,6 +276,19 @@ class ReleaseController extends Controller
         $release = Release::whereIn('organization_id', $allowedOrgIds)
             ->with(['tracks', 'artwork','creator:id,name'])
             ->findOrFail($id);
+        if ($release->artwork && $release->artwork->file_path) {
+                if(str_starts_with($release->artwork->file_path,'uploads/'))
+                    {
+                        $release->artwork->file_path = Storage::disk('s3')->temporaryUrl($release->artwork->file_path,
+                    now()->addMinutes(10));
+                    }else{
+                $release->artwork->file_path = $release->artwork->file_path;
+            }
+                // $release->artwork->url = Storage::disk('s3')->temporaryUrl(
+                //     $release->artwork->file_path,
+                //     now()->addMinutes(15)
+                // );
+            }
         return response()->json($release);
     }
 
