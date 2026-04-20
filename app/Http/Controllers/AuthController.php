@@ -62,6 +62,7 @@ class AuthController extends Controller
         ]);
         return response()->json([
             'message' => "Welcome {$user->name}, you are logged in as {$formattedRole}. Redirecting you to {$organizationName}...",
+            'user_name' => $user->name,
             'access_token' => $token,
             'refresh_token' => $plainRefreshToken,
             'token_type' => 'bearer',
@@ -190,6 +191,7 @@ class AuthController extends Controller
             $token = JWTAuth::fromUser($user);
 
             return response()->json([
+                'user_name' => $user->name,
                 'access_token' => $token,
                 'token_type' => 'bearer',
                 'organization_id' => $organization->id,
