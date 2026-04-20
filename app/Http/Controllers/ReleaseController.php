@@ -275,8 +275,9 @@ class ReleaseController extends Controller
 
         $release = Release::whereIn('organization_id', $allowedOrgIds)
             ->with(['tracks', 'artwork','creator:id,name'])
-            ->findOrFail($id)
-            ->latest();
+            ->latest()
+            ->firstOrFail();
+        
         if ($release->artwork && $release->artwork->file_path) {
                 if(str_starts_with($release->artwork->file_path,'uploads/'))
                     {
