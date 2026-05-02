@@ -30,121 +30,128 @@ class TrackController extends Controller
     }
 
     // ✅ Create Track
-    public function store(Request $request)
-    {
-        $user = Auth::user();
+public function store(Request $request)
+{
+    $user = Auth::user();
 
-        // 🔐 Permission check
-        if (!$this->canManageRelease($user)) {
-            return response()->json(['error' => 'Forbidden'], 403);
-        }
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
+    // 🔐 Permission check
+    if (!$this->canManageRelease($user)) {
+        return response()->json(['error' => 'Forbidden'], 403);
+    }
 
-            // metadata
-            'primary_genre' => 'required|string',
-            'secondary_genre' => 'nullable|string',
-            'version' => 'nullable|string',
-            'language' => 'nullable|string',
-            'lyrics' => 'nullable|string',
+    // ✅ Validation
+    $validated = $request->validate([
+        'title' => 'required|string|max:255',
 
-            'is_explicit' => 'boolean',
-            'preview_start' => 'nullable|integer',
-            'track_origin' => 'required|in:original,public_domain,cover',
+        // metadata
+        'primary_genre' => 'required|string',
+        'secondary_genre' => 'nullable|string',
+        'version' => 'nullable|string',
+        'language' => 'nullable|string',
+        'lyrics' => 'nullable|string',
 
-            'track_properties' => 'nullable|array',
+        'is_explicit' => 'boolean',
+        'preview_start' => 'nullable|integer',
+        'track_origin' => 'required|in:original,public_domain,cover',
 
-            // 🎧 audio (required)
-            'audio_file_path' => 'required|string',
-            'audio_file_name' => 'required|string',
-            'audio_mime_type' => 'required|string',
-            'audio_file_size' => 'required|integer',
+        'track_properties' => 'nullable|array',
 
-            // 📄 license (conditional)
-            'sample_license_file_path' => 'nullable|string',
-            'sample_license_file_name' => 'nullable|string',
-            'sample_license_mime_type' => 'nullable|string',
-            'sample_license_file_size' => 'nullable|integer',
+        // 🎧 audio (required)
+        'audio_file_path' => 'required|string',
+        'audio_file_name' => 'required|string',
+        'audio_mime_type' => 'required|string',
+        'audio_file_size' => 'required|integer',
 
-            // copyright
-            'copyright_year' => 'nullable|integer',
-            'copyright_owner' => 'nullable|string',
+        // 📄 license (conditional)
+        'sample_license_file_path' => 'nullable|string',
+        'sample_license_file_name' => 'nullable|string',
+        'sample_license_mime_type' => 'nullable|string',
+        'sample_license_file_size' => 'nullable|integer',
+
+        // copyright
+        'copyright_year' => 'nullable|integer',
+        'copyright_owner' => 'nullable|string',
+    ]);
+
+    // 🧠 Normalize organization
+    $orgId = $user->currentOrganizationId();
+    $userOrg = Organization::findOrFail($orgId);
+    $organizationId = $userOrg->parent_id ?? $userOrg->id;
+
+    DB::beginTransaction();
+
+    try {
+
+        // 🧠 Clean properties
+        $properties = array_values(array_filter($validated['track_properties'] ?? []));
+
+        // 🎵 Create Track
+        $trackData = collect($validated)->except([
+            'audio_file_path',
+            'audio_file_name',
+            'audio_mime_type',
+            'audio_file_size',
+            'sample_license_file_path',
+            'sample_license_file_name',
+            'sample_license_mime_type',
+            'sample_license_file_size',
+        ])->toArray();
+
+        $track = Track::create([
+            ...$trackData,
+            'track_properties' => $properties,
+            'organization_id' => $organizationId, // ✅ FIXED
+            'created_by' => $user->id,
         ]);
-        $orgId = $user->currentOrganizationId();
-        $userOrg = Organization::findOrFail($orgId);
-        $organizationId = $userOrg->parent_id ?? $userOrg->id;
 
-        DB::beginTransaction();
+        // 🎧 AUDIO ASSET (REQUIRED)
+        Asset::create([
+            'id' => (string) Str::uuid(),
+            'organization_id' => $organizationId,
+            'track_id' => $track->id,
+            'asset_type' => 'audio',
+            'file_name' => $validated['audio_file_name'],
+            'file_path' => $validated['audio_file_path'],
+            'mime_type' => $validated['audio_mime_type'],
+            'file_size' => $validated['audio_file_size'],
+            'created_by' => $user->id,
+        ]);
 
-        try {
-
-            // 🧠 Clean properties
-            $properties = array_values(array_filter($request->track_properties ?? []));
-
-            // 🎵 Create Track (NO FILES HERE)
-            $track = Track::create([
-                'title' => $request->title,
-                'primary_genre' => $request->primary_genre,
-                'secondary_genre' => $request->secondary_genre,
-                'version' => $request->version,
-                'language' => $request->language,
-                'lyrics' => $request->lyrics,
-                'is_explicit' => $request->is_explicit ?? false,
-                'preview_start' => $request->preview_start ?? 0,
-                'track_origin' => $request->track_origin,
-                'track_properties' => $properties,
-                'copyright_year' => $request->copyright_year,
-                'copyright_owner' => $request->copyright_owner,
-                'created_by' => $user->id,
-            ]);
-
-            // 🎧 AUDIO ASSET (REQUIRED)
-            $audioAsset = Asset::create([
+        // 📄 LICENSE (ONLY IF samples_or_stock)
+        if (
+            in_array('samples_or_stock', $properties) &&
+            $request->filled('sample_license_file_path')
+        ) {
+            Asset::create([
                 'id' => (string) Str::uuid(),
                 'organization_id' => $organizationId,
                 'track_id' => $track->id,
-                'asset_type' => 'audio',
-                'file_name' => $request->audio_file_name,
-                'file_path' => $request->audio_file_path,
-                'mime_type' => $request->audio_mime_type,
-                'file_size' => $request->audio_file_size,
+                'asset_type' => 'sample_license',
+                'file_name' => $validated['sample_license_file_name'],
+                'file_path' => $validated['sample_license_file_path'],
+                'mime_type' => $validated['sample_license_mime_type'],
+                'file_size' => $validated['sample_license_file_size'],
                 'created_by' => $user->id,
             ]);
-
-            // 📄 LICENSE (ONLY IF samples_or_stock)
-            if (
-                in_array('samples_or_stock', $properties) &&
-                $request->filled('sample_license_file_path')
-            ) {
-                Asset::create([
-                    'id' => (string) Str::uuid(),
-                    'organization_id' => $organizationId,
-                    'track_id' => $track->id,
-                    'asset_type' => 'sample_license',
-                    'file_name' => $request->sample_license_file_name,
-                    'file_path' => $request->sample_license_file_path,
-                    'mime_type' => $request->sample_license_mime_type,
-                    'file_size' => $request->sample_license_file_size,
-                    'created_by' => $user->id,
-                ]);
-            }
-
-            DB::commit();
-
-            return response()->json([
-                'message' => 'Track created successfully',
-                'data' => $track->load('assets')
-            ], 201);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-
-            return response()->json([
-                'error' => 'Failed to create track',
-                'message' => $e->getMessage()
-            ], 500);
         }
+
+        DB::commit();
+
+        return response()->json([
+            'message' => 'Track created successfully',
+            'data' => $track->load('assets')
+        ], 201);
+
+    } catch (\Exception $e) {
+
+        DB::rollBack();
+
+        return response()->json([
+            'error' => 'Failed to create track',
+            'message' => $e->getMessage()
+        ], 500);
     }
+}
     public function index($releaseId)
     {
         $user = Auth::user();
