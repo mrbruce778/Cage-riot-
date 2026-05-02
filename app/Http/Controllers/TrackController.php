@@ -32,8 +32,12 @@ class TrackController extends Controller
     // ✅ Create Track
     public function store(Request $request)
     {
-        $user = auth()->user();
+        $user = Auth::user();
 
+        // 🔐 Permission check
+        if (!$this->canManageRelease($user)) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
         $validated = $request->validate([
             'title' => 'required|string|max:255',
 
