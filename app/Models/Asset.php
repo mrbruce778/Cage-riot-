@@ -25,7 +25,7 @@ class Asset extends Model
         'file_size',
         'created_by',
     ];
-
+    
     /*
     |--------------------------------------------------------------------------
     | Relationships
@@ -50,5 +50,9 @@ class Asset extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+    public function getFileUrlAttribute()
+    {
+        return config('filesystems.disks.r2.url') . '/' . $this->file_path;
     }
 }

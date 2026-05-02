@@ -11,6 +11,10 @@ class Track extends Model
 
     protected $guarded = [];
     protected $keyType = 'string';
+    protected $casts = [
+        'track_properties' => 'array',
+        'is_explicit' => 'boolean',
+    ];
     public $incrementing = false;
 
     /*
@@ -48,7 +52,10 @@ class Track extends Model
     {
         return $this->hasOne(Asset::class)->where('asset_type', 'artwork');
     }
-
+    public function sampleLicense()
+    {
+        return $this->hasOne(Asset::class)->where('asset_type', 'sample_license');
+    }
     /*
     |--------------------------------------------------------------------------
     | Boot Logic
@@ -58,10 +65,11 @@ class Track extends Model
     protected static function booted()
     {
         static::creating(function ($track) {
-            if (!$track->track_number) {
+            if (!$track->track_number && $track->release_id) {
                 $max = self::where('release_id', $track->release_id)->max('track_number');
                 $track->track_number = $max ? $max + 1 : 1;
             }
         });
     }
+    
 }

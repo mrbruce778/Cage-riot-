@@ -102,20 +102,26 @@ class AssetController extends Controller
     }
     public function getSignedUploadUrl(Request $request)
     {
-        $user = auth()->user();
-
         $request->validate([
             'file_name' => 'required|string',
             'file_type' => 'required|string',
+            'type' => 'required|in:audio,license,artwork',
         ]);
 
-        $key = 'uploads/' . Str::uuid() . '-' . $request->file_name;
+        // 🎯 Folder mapping
+        $folder = match ($request->type) {
+            'audio' => 'tracks/audio/',
+            'license' => 'tracks/license/',
+            'artwork' => 'releases/artwork/',
+        };
+
+        $key = $folder . Str::uuid() . '-' . $request->file_name;
 
         $client = new S3Client([
             'version' => 'latest',
             'region' => config('filesystems.disks.r2.region'),
             'endpoint' => config('filesystems.disks.r2.endpoint'),
-            'use_path_style_endpoint' => true, 
+            'use_path_style_endpoint' => true,
             'credentials' => [
                 'key' => config('filesystems.disks.r2.key'),
                 'secret' => config('filesystems.disks.r2.secret'),
@@ -126,12 +132,11 @@ class AssetController extends Controller
             'Bucket' => config('filesystems.disks.r2.bucket'),
             'Key' => $key,
             'ContentType' => $request->file_type,
-            '@http' => [
-                'verify' => false, // sometimes needed for R2 SSL
-            ],
         ]);
 
-        $signedUrl = (string) $client->createPresignedRequest($cmd, '+10 minutes')->getUri();
+        $signedUrl = (string) $client
+            ->createPresignedRequest($cmd, '+10 minutes')
+            ->getUri();
 
         return response()->json([
             'upload_url' => $signedUrl,
