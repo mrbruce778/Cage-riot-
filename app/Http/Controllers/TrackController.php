@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\Asset;
 use App\Models\Organization;
+use Illuminate\Support\Str;
 
 class TrackController extends Controller
 {
