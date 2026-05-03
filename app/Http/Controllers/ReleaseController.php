@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Models\Asset;
+use App\Models\Contributor;
 use Illuminate\Support\Facades\DB;
 use App\Models\Organization;
 
