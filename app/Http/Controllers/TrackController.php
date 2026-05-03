@@ -170,7 +170,7 @@ public function store(Request $request)
     }
 
     // ✅ Update Track
-    public function update(Request $request, $trackId)
+    public function update(Request $request,  $id)
     {
         $user = Auth::user();
 
