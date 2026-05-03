@@ -238,10 +238,18 @@ public function store(Request $request)
                     $allowedProperties
                 ));
             }
+            $trackData = collect($validated)->except([
+                'audio_file_path',
+                'audio_file_name',
+                'audio_mime_type',
+                'audio_file_size',
+                'sample_license_file_path',
+                'sample_license_file_name',
+                'sample_license_mime_type',
+                'sample_license_file_size',
+            ])->toArray();
 
-            // ✅ Update track metadata
-            $track->update($validated);
-
+            $track->update($trackData);
             // 🎧 Replace audio (if new uploaded)
             if ($request->filled('audio_file_path')) {
 
