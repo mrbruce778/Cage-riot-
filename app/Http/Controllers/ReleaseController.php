@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Release;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -14,6 +15,10 @@ use App\Models\Organization;
 
 class ReleaseController extends Controller
 {
+    private function generateUPC()
+    {
+        return '99' . str_pad(random_int(0, 9999999999), 10, '0', STR_PAD_LEFT);
+    }
     private function getAllowedOrgIds($user)
     {
         $org = Organization::findOrFail($user->currentOrganizationId());
@@ -170,38 +175,91 @@ class ReleaseController extends Controller
             ], 500);
         }
     }
+
+
     public function store(Request $request)
     {
         $user = Auth::user();
 
-        // 🔐 Permission check
         if (!$this->canManageRelease($user)) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
-        // if ($request->has('metadata')) {
-        //     $request->merge([
-        //     'metadata' => json_decode($request->metadata, true)
-        //     ]       );
-        // }
+
+        // 🎯 Allowed roles
+        $allowedRoles = [
+            'primary_artist',
+            'featuring_artist',
+            'with_artist',
+            'remixer',
+
+            'performer',
+            'lead_vocalist',
+            'background_vocalist',
+            'vocalist',
+            'rapper',
+            'singer',
+            'instrumentalist',
+            'guitarist',
+            'drummer',
+            'bassist',
+            'keyboardist',
+            'pianist',
+            'dj',
+
+            'producer',
+            'co_producer',
+            'executive_producer',
+            'composer',
+            'songwriter',
+            'lyricist',
+            'arranger',
+            'programmer',
+            'beat_maker',
+            'sound_designer',
+
+            'engineer',
+            'recording_engineer',
+            'mixing_engineer',
+            'mastering_engineer',
+            'assistant_engineer',
+            'audio_editor',
+        ];
+
         // ✅ Validation
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'version_title' => 'nullable|string|max:255',
             'primary_artist_name' => 'required|string|max:255',
             'release_type' => 'required|string|max:50',
-            'upc' => 'nullable|string|max:50',
             'label_name' => 'nullable|string|max:255',
-            'release_date' => 'nullable|date',
-            'original_release_date' => 'nullable|date',
-            'metadata' => 'nullable|array',
+
+            // 🎯 UPC
+            'upc' => [
+                'nullable',
+                'string',
+                'size:12',
+                Rule::unique('releases', 'upc')
+            ],
+            'auto_generate_upc' => 'boolean',
+
+            // 🎯 timing
+            'previously_released' => 'boolean',
+            'release_timing' => 'nullable|in:asap,date',
+            'scheduled_release_date' => 'nullable|date',
+
+            // 🎤 contributors
+            'contributors' => 'required|array|min:1',
+            'contributors.*.name' => 'required|string|max:255',
+            'contributors.*.role' => 'required|string',
+            'contributors.*.user_id' => 'required|exists:users,id',
+            // 🎨 artwork
             'file_path' => 'nullable|string',
             'file_name' => 'nullable|string',
             'mime_type' => 'nullable|string',
             'file_size' => 'nullable|integer',
-            // 'artwork' => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
         ]);
 
-        // 🧠 Normalize organization (parent or self)
+        // 🧠 Organization normalization
         $orgId = $user->currentOrganizationId();
         $userOrg = Organization::findOrFail($orgId);
         $organizationId = $userOrg->parent_id ?? $userOrg->id;
@@ -209,13 +267,69 @@ class ReleaseController extends Controller
         DB::beginTransaction();
 
         try {
-           
+
+            // 🚀 UPC LOGIC
+            if ($request->auto_generate_upc) {
+
+                do {
+                    $upc = $this->generateUPC();
+                } while (Release::where('upc', $upc)->exists());
+
+                $validated['upc'] = $upc;
+
+            } else {
+
+                if (empty($validated['upc'])) {
+                    throw new \Exception("UPC is required or enable auto-generate");
+                }
+            }
+
+            // 🚀 RELEASE TIMING LOGIC
+            $previouslyReleased = $request->boolean('previously_released');
+            $releaseTiming = $request->input('release_timing');
+            $scheduledDate = $request->input('scheduled_release_date');
+
+            if ($previouslyReleased) {
+                $validated['release_timing'] = null;
+                $validated['scheduled_release_date'] = null;
+            } else {
+
+                if (!$releaseTiming) {
+                    throw new \Exception("release_timing is required");
+                }
+
+                if ($releaseTiming === 'asap') {
+                    $validated['scheduled_release_date'] = null;
+                }
+
+                if ($releaseTiming === 'date') {
+
+                    if (!$scheduledDate) {
+                        throw new \Exception("scheduled_release_date is required when release_timing is 'date'");
+                    }
+
+                    if (strtotime($scheduledDate) < strtotime(date('Y-m-d'))) {
+                        throw new \Exception("scheduled_release_date cannot be in the past");
+                    }
+
+                    $validated['scheduled_release_date'] = $scheduledDate;
+                }
+
+                if (!in_array($releaseTiming, ['asap', 'date'])) {
+                    throw new \Exception("Invalid release_timing value");
+                }
+
+                $validated['release_timing'] = $releaseTiming;
+            }
+
+            // 🎯 Prepare release data
             $releaseData = collect($validated)->except([
-                    'file_path',
-                    'file_name',
-                    'mime_type',
-                    'file_size'
-                ])->toArray();
+                'contributors',
+                'file_path',
+                'file_name',
+                'mime_type',
+                'file_size'
+            ])->toArray();
 
             // 🧱 Create release
             $release = Release::create([
@@ -225,25 +339,56 @@ class ReleaseController extends Controller
                 'status' => 'draft',
             ]);
 
-            // 🖼 Upload artwork if exists
-            if ($request->filled('file_path')) {
+            // 🎤 HANDLE CONTRIBUTORS
+            $primaryArtistCount = 0;
 
-                $path = $request->input('file_path');
+            foreach ($request->contributors as $item) {
+
+                if (!in_array($item['role'], $allowedRoles)) {
+                    throw new \Exception("Invalid role: " . $item['role']);
+                }
+
+            $contributor = Contributor::firstOrCreate([
+                'user_id' => $item['user_id'],
+                'organization_id' => $organizationId,
+            ], [
+                'name' => $item['name'],
+            ]);
+
+                if ($item['role'] === 'primary_artist') {
+                    $primaryArtistCount++;
+
+                }
+
+                DB::table('release_contributors')->insert([
+                    'id' => (string) Str::uuid(),
+                    'release_id' => $release->id,
+                    'contributor_id' => $contributor->id,
+                    'role' => $item['role'],
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            if ($primaryArtistCount !== 1) {
+                throw new \Exception("Exactly one primary artist is required");
+            }
+
+            // 🖼 Artwork
+            if ($request->filled('file_path')) {
 
                 $asset = Asset::create([
                     'id' => (string) Str::uuid(),
                     'organization_id' => $organizationId,
                     'release_id' => $release->id,
                     'asset_type' => 'artwork',
-                    'file_name' => $request->input('file_name'),
-                    'file_path' => $path,
-                    'mime_type' => $request->input('mime_type'),
-                    // 'file_size' => $file->getSize(),
-                    'file_size' => $request->input('file_size'),
+                    'file_name' => $request->file_name,
+                    'file_path' => $request->file_path,
+                    'mime_type' => $request->mime_type,
+                    'file_size' => $request->file_size,
                     'created_by' => $user->id,
                 ]);
 
-                // 🔗 Attach artwork
                 $release->update([
                     'artwork_asset_id' => $asset->id
                 ]);
@@ -253,7 +398,7 @@ class ReleaseController extends Controller
 
             return response()->json([
                 'message' => 'Release created successfully',
-                'data' => $release->load('artwork')
+                'data' => $release->load('contributors')
             ], 201);
 
         } catch (\Exception $e) {
@@ -266,7 +411,6 @@ class ReleaseController extends Controller
             ], 500);
         }
     }
-
     public function show($id)
     {
         $user = Auth::user();
