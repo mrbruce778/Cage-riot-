@@ -65,4 +65,6 @@ Route::middleware(['auth:api'])->group(function () {
     Route::post('/tracks/{track}/asset', [TrackController::class, 'uploadAsset']);
     Route::delete('tracks/{id}', [TrackController::class, 'destroy']);
     Route::get('tracks/{id}', [TrackController::class, 'show']);
+
+    Route::get('/organizations/{orgId}/users', [UserController::class, 'getUsersByOrganization']);
 });
