@@ -43,4 +43,11 @@ class Release extends Model
     {
         return $this->hasMany(Asset::class, 'release_id');
     }
+    public function contributors()
+    {
+        return $this->belongsToMany(
+            Contributor::class,
+            'release_contributors'
+        )->withPivot('role')->withTimestamps();
+    }
 }
