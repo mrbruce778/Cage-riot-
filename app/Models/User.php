@@ -82,4 +82,23 @@ class User extends Authenticatable implements JWTSubject
     {
         return auth()->payload()->get('organization_id');
     }
+    public function scopeWithArtistRoles($query, $organizationId)
+    {
+        return $query->whereHas('userRoles', function ($q) use ($organizationId) {
+            $q->where(function ($sub) use ($organizationId) {
+                $sub->where('organization_id', $organizationId)
+                    ->orWhereHas('organization', function ($org) use ($organizationId) {
+                        $org->where('parent_id', $organizationId);
+                    });
+            })
+            ->whereHas('role', function ($role) {
+                $role->whereIn('name', [
+                    'standard_owner',
+                    'standard_viewer',
+                    'artist_owner',
+                    'artist_viewer'
+                ]);
+            });
+        });
+    }
 }

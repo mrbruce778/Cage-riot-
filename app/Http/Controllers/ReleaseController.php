@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Models\Asset;
+use App\Models\User;
 use App\Models\Contributor;
 use Illuminate\Support\Facades\DB;
 use App\Models\Organization;
@@ -85,97 +86,97 @@ class ReleaseController extends Controller
         });
         return response()->json($releases);
     }
-    public function oldstore(Request $request)
-    {
-        $user = Auth::user();
+    // public function oldstore(Request $request)
+    // {
+    //     $user = Auth::user();
 
-        // 🔐 Permission check
-        if (!$this->canManageRelease($user)) {
-            return response()->json(['error' => 'Forbidden'], 403);
-        }
+    //     // 🔐 Permission check
+    //     if (!$this->canManageRelease($user)) {
+    //         return response()->json(['error' => 'Forbidden'], 403);
+    //     }
 
-        // 🧠 Decode metadata if string
-        if ($request->has('metadata')) {
-            $request->merge([
-                'metadata' => json_decode($request->metadata, true)
-            ]);
-        }
+    //     // 🧠 Decode metadata if string
+    //     if ($request->has('metadata')) {
+    //         $request->merge([
+    //             'metadata' => json_decode($request->metadata, true)
+    //         ]);
+    //     }
 
-        // ✅ Validation
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'version_title' => 'nullable|string|max:255',
-            'primary_artist_name' => 'required|string|max:255',
-            'release_type' => 'required|string|max:50',
-            'upc' => 'nullable|string|max:50',
-            'label_name' => 'nullable|string|max:255',
-            'release_date' => 'nullable|date',
-            'original_release_date' => 'nullable|date',
-            'metadata' => 'nullable|array',
+    //     // ✅ Validation
+    //     $validated = $request->validate([
+    //         'title' => 'required|string|max:255',
+    //         'version_title' => 'nullable|string|max:255',
+    //         'primary_artist_name' => 'required|string|max:255',
+    //         'release_type' => 'required|string|max:50',
+    //         'upc' => 'nullable|string|max:50',
+    //         'label_name' => 'nullable|string|max:255',
+    //         'release_date' => 'nullable|date',
+    //         'original_release_date' => 'nullable|date',
+    //         'metadata' => 'nullable|array',
 
-            // ✅ NEW: artwork upload like track
-            'artwork' => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
-        ]);
+    //         // ✅ NEW: artwork upload like track
+    //         'artwork' => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
+    //     ]);
 
-        // 🧠 Normalize organization
-        $orgId = $user->currentOrganizationId();
-        $userOrg = Organization::findOrFail($orgId);
-        $organizationId = $userOrg->parent_id ?? $userOrg->id;
+    //     // 🧠 Normalize organization
+    //     $orgId = $user->currentOrganizationId();
+    //     $userOrg = Organization::findOrFail($orgId);
+    //     $organizationId = $userOrg->parent_id ?? $userOrg->id;
 
-        DB::beginTransaction();
+    //     DB::beginTransaction();
 
-        try {
+    //     try {
 
-            $releaseData = collect($validated)->except(['artwork'])->toArray();
+    //         $releaseData = collect($validated)->except(['artwork'])->toArray();
 
-            // 🧱 Create release
-            $release = Release::create([
-                ...$releaseData,
-                'organization_id' => $organizationId,
-                'created_by' => $user->id,
-                'status' => 'draft',
-            ]);
+    //         // 🧱 Create release
+    //         $release = Release::create([
+    //             ...$releaseData,
+    //             'organization_id' => $organizationId,
+    //             'created_by' => $user->id,
+    //             'status' => 'draft',
+    //         ]);
 
-            // 🖼️ Artwork upload (LIKE TRACK API)
-            if ($request->hasFile('artwork')) {
+    //         // 🖼️ Artwork upload (LIKE TRACK API)
+    //         if ($request->hasFile('artwork')) {
 
-                $file = $request->file('artwork');
-                $path = $file->store('releases/artwork', 'public');
+    //             $file = $request->file('artwork');
+    //             $path = $file->store('releases/artwork', 'public');
 
-                $asset = Asset::create([
-                    'organization_id' => $organizationId,
-                    'release_id' => $release->id,
-                    'asset_type' => 'artwork',
-                    'file_name' => $file->getClientOriginalName(),
-                    'file_path' => $path,
-                    'mime_type' => $file->getMimeType(),
-                    'file_size' => $file->getSize(),
-                    'created_by' => $user->id,
-                ]);
+    //             $asset = Asset::create([
+    //                 'organization_id' => $organizationId,
+    //                 'release_id' => $release->id,
+    //                 'asset_type' => 'artwork',
+    //                 'file_name' => $file->getClientOriginalName(),
+    //                 'file_path' => $path,
+    //                 'mime_type' => $file->getMimeType(),
+    //                 'file_size' => $file->getSize(),
+    //                 'created_by' => $user->id,
+    //             ]);
 
-                // 🔗 Attach artwork to release
-                $release->update([
-                    'artwork_asset_id' => $asset->id
-                ]);
-            }
+    //             // 🔗 Attach artwork to release
+    //             $release->update([
+    //                 'artwork_asset_id' => $asset->id
+    //             ]);
+    //         }
 
-            DB::commit();
+    //         DB::commit();
 
-            return response()->json([
-                'message' => 'Release created successfully',
-                'data' => $release->load('artwork')
-            ], 201);
+    //         return response()->json([
+    //             'message' => 'Release created successfully',
+    //             'data' => $release->load('artwork')
+    //         ], 201);
 
-        } catch (\Exception $e) {
+    //     } catch (\Exception $e) {
 
-            DB::rollBack();
+    //         DB::rollBack();
 
-            return response()->json([
-                'error' => 'Failed to create release',
-                'message' => $e->getMessage()
-            ], 500);
-        }
-    }
+    //         return response()->json([
+    //             'error' => 'Failed to create release',
+    //             'message' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
 
 
     public function store(Request $request)
@@ -542,5 +543,24 @@ class ReleaseController extends Controller
         $release->delete();
 
         return response()->json(['message' => 'Deleted successfully']);
+    }
+    public function getUsersByOrganization($orgId)
+    {
+        // Step 1: Resolve parent or self
+        $userOrg = Organization::findOrFail($orgId);
+        $organizationId = $userOrg->parent_id ?? $userOrg->id;
+
+        // Step 2: Get users using scope
+        $users = User::withArtistRoles($organizationId)
+            ->with([
+                'userRoles.role',
+                'userRoles.organization'
+            ])
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $users
+        ]);
     }
 }
