@@ -182,7 +182,7 @@ public function store(Request $request)
         $organizationId = $userOrg->parent_id ?? $userOrg->id;
 
         $track = Track::where('organization_id', $organizationId)
-            ->findOrFail($trackId);
+            ->findOrFail($id);
 
         // ✅ Full validation (same as store but nullable)
         $validated = $request->validate([
