@@ -259,6 +259,8 @@ class ReleaseController extends Controller
             'file_name' => 'nullable|string',
             'mime_type' => 'nullable|string',
             'file_size' => 'nullable|integer',
+            'primary_genre' => 'nullable|string',
+            'secondary_genre' => 'nullable|string',
         ]);
 
         // 🧠 Organization normalization
