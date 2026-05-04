@@ -62,7 +62,9 @@ class ReleaseController extends Controller
 
         $releases = Release::whereIn('organization_id', $allowedOrgIds)
             ->with(['artwork',
-                    'creator:id,name'
+                    'creator:id,name',
+                    'contributors'
+
             ])
             ->latest()
             ->get();
