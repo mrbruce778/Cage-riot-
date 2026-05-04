@@ -397,14 +397,14 @@ class TrackController extends Controller
 
         $track = Track::where('id', $id)
             ->where('organization_id', $normalizedOrgId)
-            ->with(['audio', 'artwork','creator:id,name']) // ✅ load assets
+            ->with(['audio', 'creator:id,name']) // ✅ load assets
             ->firstOrFail();
-        if ($track->artwork && $track->artwork->file_path) {
+        if ($track->audio && $track->audio->file_path) {
 
             if (str_starts_with($release->artwork->file_path, 'tracks/')) {
 
-                $track->artwork->file_path = Storage::disk('s3')->temporaryUrl(
-                    $track->artwork->file_path,
+                $track->audio->file_path = Storage::disk('s3')->temporaryUrl(
+                    $track->audio->file_path,
                     now()->addMinutes(10)
                 );
 
