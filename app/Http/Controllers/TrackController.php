@@ -399,6 +399,7 @@ class TrackController extends Controller
             ->where('organization_id', $normalizedOrgId)
             ->with(['audio', 'creator:id,name']) // ✅ load assets
             ->firstOrFail();
+        dd($track->audio);
         if ($track->audio && $track->audio->file_path) {
 
             if (str_starts_with($track->artwork->file_path, 'tracks/')) {
