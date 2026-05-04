@@ -31,7 +31,7 @@ class TrackController extends Controller
     }
 
     // ✅ Create Track
-    public function store(Request $request)
+    public function store(Request $request, $releaseId)
     {
         $user = Auth::user();
 
