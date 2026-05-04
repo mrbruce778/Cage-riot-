@@ -401,7 +401,7 @@ class TrackController extends Controller
             ->firstOrFail();
         if ($track->audio && $track->audio->file_path) {
 
-            if (str_starts_with($release->artwork->file_path, 'tracks/')) {
+            if (str_starts_with($track->artwork->file_path, 'tracks/')) {
 
                 $track->audio->file_path = Storage::disk('s3')->temporaryUrl(
                     $track->audio->file_path,
