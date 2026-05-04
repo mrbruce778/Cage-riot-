@@ -166,7 +166,17 @@ class TrackController extends Controller
             ->orderBy('track_number')
             ->with(['audio', 'artwork','creator:id,name'])
             ->get();
+        if ($track->audio && $track->audio->file_path) {
 
+            if (str_starts_with($track->audio->file_path, 'tracks/')) {
+
+                $track->audio->file_path = Storage::disk('s3')->temporaryUrl(
+                    $track->audio->file_path,
+                    now()->addMinutes(10)
+                );
+
+            }
+        }
         return response()->json($tracks);
     }
 
