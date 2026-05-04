@@ -399,7 +399,17 @@ class TrackController extends Controller
             ->where('organization_id', $normalizedOrgId)
             ->with(['audio', 'artwork','creator:id,name']) // ✅ load assets
             ->firstOrFail();
+        if ($track->artwork && $track->artwork->file_path) {
 
+            if (str_starts_with($release->artwork->file_path, 'tracks/')) {
+
+                $track->artwork->file_path = Storage::disk('s3')->temporaryUrl(
+                    $track->artwork->file_path,
+                    now()->addMinutes(10)
+                );
+
+            }
+        }
         return response()->json($track);
     }
     public function uploadAsset(Request $request, Track $track)
