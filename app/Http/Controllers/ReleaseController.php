@@ -440,7 +440,6 @@ class ReleaseController extends Controller
 
         return response()->json($release);
     }
-
     public function update(Request $request, $id)
     {
         $user = Auth::user();
@@ -454,44 +453,237 @@ class ReleaseController extends Controller
         $release = Release::whereIn('organization_id', $allowedOrgIds)
             ->findOrFail($id);
 
-        // if ($request->has('metadata')) {
-        //     $request->merge([
-        //         'metadata' => json_decode($request->metadata, true)
-        //     ]);
-        // }
+        // 🎯 Allowed roles
+        $allowedRoles = [
+            'primary_artist','featuring_artist','with_artist','remixer',
+            'performer','lead_vocalist','background_vocalist','vocalist',
+            'rapper','singer','instrumentalist','guitarist','drummer',
+            'bassist','keyboardist','pianist','dj',
+            'producer','co_producer','executive_producer','composer',
+            'songwriter','lyricist','arranger','programmer','beat_maker',
+            'sound_designer',
+            'engineer','recording_engineer','mixing_engineer',
+            'mastering_engineer','assistant_engineer','audio_editor',
+        ];
 
+        /*
+        |--------------------------------------------------------------------------
+        | ✅ VALIDATION
+        |--------------------------------------------------------------------------
+        */
         $validated = $request->validate([
             'title' => 'nullable|string|max:255',
             'version_title' => 'nullable|string|max:255',
             'primary_artist_name' => 'nullable|string|max:255',
             'release_type' => 'nullable|string|max:50',
-            'upc' => 'nullable|string|max:50',
             'label_name' => 'nullable|string|max:255',
-            'release_date' => 'nullable|date',
-            'original_release_date' => 'nullable|date',
-            'metadata' => 'nullable|array',
-            'status' => 'nullable|string',
 
+            // 🎯 UPC
+            'upc' => [
+                'nullable',
+                'string',
+                'size:12',
+                Rule::unique('releases', 'upc')->ignore($release->id)
+            ],
+            'auto_generate_upc' => 'boolean',
+
+            // 🎯 timing
+            'previously_released' => 'boolean',
+            'release_timing' => 'nullable|in:asap,date',
+            'scheduled_release_date' => 'nullable|date',
+
+            // 🎤 contributors (partial sync)
+            'contributors' => 'nullable|array',
+            'contributors.*.id' => 'nullable|uuid|exists:release_contributors,id',
+            'contributors.*.name' => 'required|string|max:255',
+            'contributors.*.role' => 'required|string',
+            'contributors.*.user_id' => 'required|exists:users,id',
+
+            'deleted_contributor_ids' => 'nullable|array',
+            'deleted_contributor_ids.*' => 'uuid|exists:release_contributors,id',
+
+            // 🎨 artwork
             'file_path' => 'nullable|string',
-            'file_name' => 'nullable|string',
-            'mime_type' => 'nullable|string',
-            'file_size' => 'nullable|integer',
+            'file_name' => 'required_with:file_path|string',
+            'mime_type' => 'required_with:file_path|string',
+            'file_size' => 'required_with:file_path|integer',
+
+            // 📌 status
+            'status' => 'nullable|in:draft,published,archived',
         ]);
 
         DB::beginTransaction();
 
         try {
 
-            // 🧱 Update release fields
-            $release->update(collect($validated)->except([
+            /*
+            |--------------------------------------------------------------------------
+            | 🚀 UPC LOGIC
+            |--------------------------------------------------------------------------
+            */
+            if ($request->auto_generate_upc) {
+
+                do {
+                    $upc = $this->generateUPC();
+                } while (
+                    Release::where('upc', $upc)
+                        ->where('id', '!=', $release->id)
+                        ->exists()
+                );
+
+                $validated['upc'] = $upc;
+
+            } else {
+                if (array_key_exists('upc', $validated) && empty($validated['upc'])) {
+                    throw new \Exception("UPC is required or enable auto-generate");
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | 🚀 RELEASE TIMING LOGIC
+            |--------------------------------------------------------------------------
+            */
+            if ($request->has('previously_released') || $request->has('release_timing')) {
+
+                $previouslyReleased = $request->boolean('previously_released');
+                $releaseTiming = $request->input('release_timing');
+                $scheduledDate = $request->input('scheduled_release_date');
+
+                if ($previouslyReleased) {
+
+                    $validated['release_timing'] = null;
+                    $validated['scheduled_release_date'] = null;
+
+                } else {
+
+                    if (!$releaseTiming) {
+                        throw new \Exception("release_timing is required");
+                    }
+
+                    if ($releaseTiming === 'asap') {
+                        $validated['scheduled_release_date'] = null;
+                    }
+
+                    if ($releaseTiming === 'date') {
+
+                        if (!$scheduledDate) {
+                            throw new \Exception("scheduled_release_date is required when release_timing is 'date'");
+                        }
+
+                        if (strtotime($scheduledDate) < strtotime(date('Y-m-d'))) {
+                            throw new \Exception("scheduled_release_date cannot be in the past");
+                        }
+
+                        $validated['scheduled_release_date'] = $scheduledDate;
+                    }
+
+                    if (!in_array($releaseTiming, ['asap', 'date'])) {
+                        throw new \Exception("Invalid release_timing value");
+                    }
+
+                    $validated['release_timing'] = $releaseTiming;
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | 🧱 UPDATE RELEASE
+            |--------------------------------------------------------------------------
+            */
+            $releaseData = collect($validated)->except([
+                'contributors',
+                'deleted_contributor_ids',
                 'file_path',
                 'file_name',
                 'mime_type',
                 'file_size'
-            ])->toArray());
+            ])->toArray();
 
-            // 🖼 Update artwork if provided
+            $release->update($releaseData);
+
+            /*
+            |--------------------------------------------------------------------------
+            | ❌ DELETE CONTRIBUTORS (partial)
+            |--------------------------------------------------------------------------
+            */
+            if (!empty($validated['deleted_contributor_ids'])) {
+                DB::table('release_contributors')
+                    ->where('release_id', $release->id)
+                    ->whereIn('id', $validated['deleted_contributor_ids'])
+                    ->delete();
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | ➕ UPDATE / INSERT CONTRIBUTORS
+            |--------------------------------------------------------------------------
+            */
+            if (!empty($validated['contributors'])) {
+
+                foreach ($validated['contributors'] as $item) {
+
+                    if (!in_array($item['role'], $allowedRoles)) {
+                        throw new \Exception("Invalid role: " . $item['role']);
+                    }
+
+                    $contributor = Contributor::firstOrCreate([
+                        'user_id' => $item['user_id'],
+                        'organization_id' => $release->organization_id,
+                    ], [
+                        'name' => $item['name'],
+                    ]);
+
+                    // ✅ UPDATE
+                    if (!empty($item['id'])) {
+
+                        DB::table('release_contributors')
+                            ->where('id', $item['id'])
+                            ->where('release_id', $release->id)
+                            ->update([
+                                'role' => $item['role'],
+                                'updated_at' => now(),
+                            ]);
+
+                    } else {
+                        // ✅ INSERT
+                        DB::table('release_contributors')->insert([
+                            'id' => (string) Str::uuid(),
+                            'release_id' => $release->id,
+                            'contributor_id' => $contributor->id,
+                            'role' => $item['role'],
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                    }
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | 🔒 PRIMARY ARTIST VALIDATION (FINAL CHECK)
+            |--------------------------------------------------------------------------
+            */
+            $primaryCount = DB::table('release_contributors')
+                ->where('release_id', $release->id)
+                ->where('role', 'primary_artist')
+                ->count();
+
+            if ($primaryCount !== 1) {
+                throw new \Exception("Exactly one primary artist is required");
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | 🖼 ARTWORK UPDATE
+            |--------------------------------------------------------------------------
+            */
             if ($request->filled('file_path')) {
+
+                // optional: delete old artwork
+                if ($release->artwork_asset_id) {
+                    Asset::where('id', $release->artwork_asset_id)->delete();
+                }
 
                 $asset = Asset::create([
                     'id' => (string) Str::uuid(),
@@ -505,7 +697,6 @@ class ReleaseController extends Controller
                     'created_by' => $user->id,
                 ]);
 
-                // 🔁 Replace artwork
                 $release->update([
                     'artwork_asset_id' => $asset->id
                 ]);
@@ -515,10 +706,11 @@ class ReleaseController extends Controller
 
             return response()->json([
                 'message' => 'Release updated successfully',
-                'data' => $release->fresh()->load('artwork')
+                'data' => $release->fresh()->load(['artwork', 'contributors'])
             ]);
 
         } catch (\Exception $e) {
+
             DB::rollBack();
 
             return response()->json([
