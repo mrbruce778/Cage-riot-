@@ -430,7 +430,7 @@ class ReleaseController extends Controller
         // Apply same artwork logic
         if ($release->artwork && $release->artwork->file_path) {
 
-            if (str_starts_with($release->artwork->file_path, 'uploads/')) {
+            if (str_starts_with($release->artwork->file_path, 'releases/artwork/')) {
 
                 $release->artwork->file_path = Storage::disk('s3')->temporaryUrl(
                     $release->artwork->file_path,
