@@ -164,22 +164,43 @@ class TrackController extends Controller
         $tracks = Track::where('organization_id', $normalizedOrgId)
             ->where('release_id', $releaseId)
             ->orderBy('track_number')
-            ->with(['audio', 'artwork','creator:id,name'])
+            ->with(['audio', 'artwork', 'creator:id,name'])
             ->get();
-        if ($track->audio && $track->audio->file_path) {
 
-            if (str_starts_with($track->audio->file_path, 'tracks/')) {
+        // ✅ Loop through each track
+        foreach ($tracks as $track) {
 
-                $track->audio->file_path = Storage::disk('s3')->temporaryUrl(
-                    $track->audio->file_path,
-                    now()->addMinutes(10)
-                );
+            // 🎧 AUDIO
+            if ($track->audio && $track->audio->file_path) {
 
+                $path = $track->audio->file_path;
+
+                if (!str_starts_with($path, 'http')) {
+
+                    $track->audio->file_path = Storage::disk('s3')->temporaryUrl(
+                        $path,
+                        now()->addMinutes(10)
+                    );
+                }
+            }
+
+            // 🖼️ ARTWORK (optional but recommended)
+            if ($track->artwork && $track->artwork->file_path) {
+
+                $path = $track->artwork->file_path;
+
+                if (!str_starts_with($path, 'http')) {
+
+                    $track->artwork->file_path = Storage::disk('s3')->temporaryUrl(
+                        $path,
+                        now()->addMinutes(10)
+                    );
+                }
             }
         }
+
         return response()->json($tracks);
     }
-
     // ✅ Update Track
     public function update(Request $request,  $id)
     {
